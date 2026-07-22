@@ -11,6 +11,12 @@ import {
   qualityLabel,
 } from "./music/chords"
 import {
+  loadGestureSettings,
+  normalizeChordCase,
+  saveGestureSettings,
+  type GestureSettings,
+} from "./music/gestureSettings"
+import {
   chordFromLeftHand,
   createChordStabilizer,
   pitchFromHandY,
@@ -52,6 +58,12 @@ export default function App() {
   const [audioOn, setAudioOn] = useState(false)
   const [mode, setMode] = useState<InstrumentMode>("gesture")
   const [keyHz, setKeyHz] = useState(220)
+  const [gestureSettings, setGestureSettings] = useState<GestureSettings>(() =>
+    loadGestureSettings(),
+  )
+  const settingsRef = useRef(gestureSettings)
+  settingsRef.current = gestureSettings
+
   const [live, setLive] = useState<LiveState>(idleLive)
   const liveFrameRef = useRef<LiveState>(idleLive)
   const [tutorialOpen, setTutorialOpen] = useState(false)
@@ -72,6 +84,11 @@ export default function App() {
     }),
     [mode],
   )
+
+  const updateGestureSettings = (next: GestureSettings) => {
+    setGestureSettings(next)
+    saveGestureSettings(next)
+  }
 
   useEffect(() => {
     if (status === "ready" && !tutorialBooted.current) {
@@ -109,18 +126,28 @@ export default function App() {
       const now = performance.now()
       const { left, right } = handsRef.current
       const synth = synthRef.current
+      const settings = settingsRef.current
 
       if (mode === "gesture") {
         let candidate: StabilizedChord | null = null
         if (left) {
           const leftTilt = wristTilt(left, "Left")
-          const chord = chordFromLeftHand(left, "Left")
-          const qualityIndex = right ? raisedFingerCount(right) : 0
+          const rawChord = chordFromLeftHand(left, "Left")
+          const isMajorMode =
+            settings.modeControl === "fixed"
+              ? settings.fixedMode === "major"
+              : leftTilt >= 0
+          const qualityIndex =
+            settings.qualityControl === "fixed"
+              ? settings.fixedQuality
+              : right
+                ? raisedFingerCount(right)
+                : 0
           const thumbDown = right ? isThumbExtended(right, "Right") : false
-          if (chord) {
+          if (rawChord) {
             candidate = {
-              chord,
-              isMajorMode: leftTilt >= 0,
+              chord: normalizeChordCase(rawChord, isMajorMode),
+              isMajorMode,
               qualityIndex,
               thumbDown,
             }
@@ -129,8 +156,11 @@ export default function App() {
 
         const stable = stabilizeRef.current(candidate, now)
         const chord = stable?.chord ?? null
-        const isMajor = stable?.isMajorMode ?? true
-        const qualityIndex = stable?.qualityIndex ?? 0
+        const isMajor = stable?.isMajorMode ?? settings.fixedMode === "major"
+        const qualityIndex =
+          settings.qualityControl === "fixed"
+            ? settings.fixedQuality
+            : (stable?.qualityIndex ?? 0)
         const thumbDown = stable?.thumbDown ?? false
         const quality = qualityLabel(qualityIndex, isMajor, thumbDown)
 
@@ -205,9 +235,17 @@ export default function App() {
     if (status === "requesting") return "Requesting camera…"
     if (status === "loading") return "Loading hand model…"
     if (!audioOn) return "Audio off — click to start"
-    if (mode === "gesture") return "Gesture mode · show both hands"
+    if (mode === "gesture") {
+      const left =
+        gestureSettings.modeControl === "fixed" ? "left = scale" : "left = scale + tilt"
+      const right =
+        gestureSettings.qualityControl === "fixed"
+          ? "right = vol/tone"
+          : "right = style + vol"
+      return `Gesture · ${left} · ${right}`
+    }
     return "Theremin · left = volume, right = pitch"
-  }, [audioOn, error, mode, status])
+  }, [audioOn, error, gestureSettings, mode, status])
 
   return (
     <div className={styles.app}>
@@ -224,6 +262,8 @@ export default function App() {
         onModeChange={setMode}
         keyHz={keyHz}
         onKeyChange={setKeyHz}
+        gestureSettings={gestureSettings}
+        onGestureSettingsChange={updateGestureSettings}
         volume={live.volume}
         tonePct={live.tonePct}
         chord={live.chord}
@@ -238,6 +278,7 @@ export default function App() {
         keyHz={keyHz}
         chord={live.chord}
         visible={mode === "gesture" && audioOn}
+        scaleOnly={gestureSettings.modeControl === "fixed"}
       />
 
       {!audioOn && (

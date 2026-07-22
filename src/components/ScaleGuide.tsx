@@ -6,9 +6,10 @@ type Props = {
   keyHz: number
   chord: string | null
   visible: boolean
+  scaleOnly?: boolean
 }
 
-export function ScaleGuide({ keyHz, chord, visible }: Props) {
+export function ScaleGuide({ keyHz, chord, visible, scaleOnly = false }: Props) {
   const degrees = useMemo(() => scaleGuideForKey(keyHz), [keyHz])
   const active = activeRoman(chord)
 
@@ -20,7 +21,10 @@ export function ScaleGuide({ keyHz, chord, visible }: Props) {
   return (
     <div className={styles.guide} aria-label={`${keyLabel} scale guide`}>
       <p className={styles.caption}>
-        Left hand · {keyLabel} — fingers choose the note
+        Left hand · {keyLabel}
+        {scaleOnly
+          ? " — fingers choose the note (mode locked in settings)"
+          : " — fingers choose the note; tilt for major/minor"}
       </p>
       <div className={styles.row}>
         {degrees.map((d, i) => {

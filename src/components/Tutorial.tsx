@@ -5,25 +5,31 @@ export const TUTORIAL_KEY = "music-synth-tutorial-done"
 
 const STEPS = [
   {
-    kicker: "Step 1 of 4",
+    kicker: "Step 1 of 5",
     title: "Camera & sound",
     body: "Allow webcam access, then click the play control to unlock audio. Stand an arm’s length from the camera with good lighting.",
     diagram: null as null | "hands" | "mode",
   },
   {
-    kicker: "Step 2 of 4",
-    title: "Left hand = chords",
-    body: "Raise fingers to pick a Roman chord (I–V). Index + pinky makes VI; add the thumb for VII. Tilt your wrist to flip major ↔ minor.",
+    kicker: "Step 2 of 5",
+    title: "Left hand = scale notes",
+    body: "Raise fingers to pick a scale degree (I–V). Index + pinky makes VI; add the thumb for VII. By default, tilt flips major ↔ minor — or lock major/minor in the left-hand settings.",
     diagram: "hands" as const,
   },
   {
-    kicker: "Step 3 of 4",
+    kicker: "Step 3 of 5",
     title: "Right hand = expression",
-    body: "Move up/down for volume. Raise 1–4 fingers for triad, inversion, or 7ths. Tilt for Tone (filter). Extend the thumb to drop an octave.",
+    body: "Move up/down for volume. By default, 1–4 fingers pick triad / inversion / 7ths. Or lock a fixed chord style in settings and just use volume, tone, and octave.",
     diagram: "hands" as const,
   },
   {
-    kicker: "Step 4 of 4",
+    kicker: "Step 4 of 5",
+    title: "Customize the controls",
+    body: "Use the Left hand / Right hand menus under the key selector to simplify gestures — scale-only left hand, or a fixed chord style on the right.",
+    diagram: "mode" as const,
+  },
+  {
+    kicker: "Step 5 of 5",
     title: "Try Theremin mode",
     body: "Switch to Theremin in the top bar for a classic feel — right hand height sets pitch, left hand height sets volume.",
     diagram: "mode" as const,

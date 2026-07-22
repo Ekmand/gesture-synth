@@ -85,6 +85,49 @@
   font-weight: 500;
 }
 
+.config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+}
+
+.configRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.configLabel {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.configHint {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.selectSm {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 0.4rem 0.65rem;
+  color: var(--mint);
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
 .topRight {
   position: absolute;
   top: 1rem;

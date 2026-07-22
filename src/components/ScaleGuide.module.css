@@ -83,10 +83,6 @@
   opacity: 0.72;
 }
 
-.pad[data-octave="true"] .note::after {
-  content: "";
-}
-
 @keyframes rise {
   from {
     opacity: 0;
