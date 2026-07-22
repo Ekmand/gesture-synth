@@ -1,0 +1,26 @@
+:root {
+  --bg-deep: #0b1014;
+  --bg-panel: rgba(12, 18, 24, 0.72);
+  --bg-panel-solid: #121a22;
+  --stroke: rgba(232, 244, 248, 0.12);
+  --text: #e8f4f8;
+  --text-muted: rgba(232, 244, 248, 0.62);
+  --mint: #3dffe0;
+  --mint-dim: rgba(61, 255, 224, 0.18);
+  --coral: #ff6b5a;
+  --coral-dim: rgba(255, 107, 90, 0.2);
+  --gold: #f0c65a;
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body: "Outfit", system-ui, sans-serif;
+  --radius: 14px;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --chord-I: 61, 255, 224;
+  --chord-II: 255, 107, 90;
+  --chord-III: 240, 198, 90;
+  --chord-IV: 120, 210, 255;
+  --chord-V: 255, 150, 70;
+  --chord-VI: 255, 90, 140;
+  --chord-VII: 160, 200, 255;
+}

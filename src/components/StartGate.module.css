@@ -1,0 +1,74 @@
+.gate {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 14vh;
+  gap: 1rem;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 16, 20, 0.35) 0%,
+    rgba(11, 16, 20, 0.72) 55%,
+    rgba(11, 16, 20, 0.88) 100%
+  );
+  cursor: pointer;
+  animation: fadeIn 0.5s var(--ease-out);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  letter-spacing: -0.04em;
+  margin: 0;
+  background: linear-gradient(120deg, var(--text) 20%, var(--mint) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tag {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 1rem;
+  max-width: 22rem;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.play {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg-deep);
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  box-shadow: 0 0 0 10px var(--mint-dim), var(--shadow);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+
+.gate:hover .play {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 14px var(--mint-dim), var(--shadow);
+}
+
+.cta {
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,159 @@
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(8, 12, 16, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  animation: fadeIn 0.35s var(--ease-out);
+}
+
+.card {
+  width: min(32rem, 100%);
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--stroke);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--shadow);
+  padding: 1.75rem 1.75rem 1.35rem;
+  animation: rise 0.45s var(--ease-out);
+}
+
+.kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.65rem;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.75rem;
+}
+
+.body {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  font-size: 1rem;
+}
+
+.diagram {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.35rem;
+}
+
+.hand {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hand h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.hand p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.hand--left h4 {
+  color: var(--mint);
+}
+
+.hand--right h4 {
+  color: var(--coral);
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.dots {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgba(232, 244, 248, 0.2);
+}
+
+.dot[data-on="true"] {
+  background: var(--mint);
+}
+
+.btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ghost,
+.primary {
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.ghost {
+  color: var(--text-muted);
+}
+
+.ghost:hover {
+  color: var(--text);
+}
+
+.primary {
+  background: var(--mint);
+  color: var(--bg-deep);
+}
+
+.primary:hover {
+  filter: brightness(1.05);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 520px) {
+  .diagram {
+    grid-template-columns: 1fr;
+  }
+}
