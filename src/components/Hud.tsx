@@ -202,6 +202,15 @@ export function Hud({
       )}
 
       <div className={styles.status}>{statusText}</div>
+
+      <a
+        className={styles.credit}
+        href="https://thegreatest.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Developed by Ekmand
+      </a>
     </div>
   )
 }

@@ -226,3 +226,24 @@
   backdrop-filter: blur(10px);
   pointer-events: none;
 }
+
+.credit {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  pointer-events: auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  backdrop-filter: blur(10px);
+  text-decoration: none;
+  transition: color 0.2s var(--ease-out), border-color 0.2s var(--ease-out);
+}
+
+.credit:hover {
+  color: var(--mint);
+  border-color: rgba(61, 255, 224, 0.35);
+}
