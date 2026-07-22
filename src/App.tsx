@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SynthEngine } from "./audio/SynthEngine"
 import { HandCanvas } from "./components/HandCanvas"
 import { Hud, type InstrumentMode } from "./components/Hud"
+import { ScaleGuide } from "./components/ScaleGuide"
 import { StartGate } from "./components/StartGate"
 import { shouldShowTutorial, Tutorial } from "./components/Tutorial"
 import {
@@ -231,6 +232,12 @@ export default function App() {
         onHelp={() => setTutorialOpen(true)}
         statusText={statusText}
         audioOn={audioOn}
+      />
+
+      <ScaleGuide
+        keyHz={keyHz}
+        chord={live.chord}
+        visible={mode === "gesture" && audioOn}
       />
 
       {!audioOn && (
