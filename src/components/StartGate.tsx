@@ -15,7 +15,7 @@ export function StartGate({ onStart, cameraReady, cameraError }: Props) {
       disabled={!!cameraError}
       aria-label="Enable audio and start"
     >
-      <h1 className={styles.brand}>Music Synth</h1>
+      <h1 className={styles.brand}>Gesture Synth</h1>
       <p className={styles.tag}>
         Play chords with your hands. Webcam in, speakers on — no hardware required.
       </p>

@@ -1,4 +1,4 @@
-# Music Synth
+# Gesture Synth
 
 Hand-tracking web instrument. Use your webcam to play chords (Gesture mode) or a classic theremin (Theremin mode).
 

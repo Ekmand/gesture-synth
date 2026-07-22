@@ -65,7 +65,7 @@ export function Hud({
   return (
     <div className={styles.hud}>
       <div className={styles.topLeft}>
-        <h1 className={styles.brand}>Music Synth</h1>
+        <h1 className={styles.brand}>Gesture Synth</h1>
         <div className={styles.row}>
           <div className={styles.panel} role="group" aria-label="Instrument mode">
             <button

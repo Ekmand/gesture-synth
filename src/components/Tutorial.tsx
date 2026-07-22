@@ -80,7 +80,7 @@ export function Tutorial({ open, onClose }: Props) {
           <div className={styles.diagram}>
             <div className={styles.hand}>
               <h4>Gesture</h4>
-              <p>Default chord instrument — the main Music Synth experience.</p>
+              <p>Default chord instrument — the main Gesture Synth experience.</p>
             </div>
             <div className={styles.hand}>
               <h4>Theremin</h4>
