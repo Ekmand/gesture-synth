@@ -120,11 +120,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-.chord {
+.chordBlock {
   position: absolute;
   left: 50%;
-  bottom: 4.5rem;
-  transform: translateX(-50%);
+  top: 42%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.chord {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: clamp(3rem, 10vw, 5rem);
@@ -132,17 +137,13 @@
   margin: 0;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
   color: var(--mint);
-  pointer-events: none;
+  line-height: 1;
 }
 
 .quality {
-  position: absolute;
-  left: 50%;
-  bottom: 2.4rem;
-  transform: translateX(-50%);
+  margin: 0.35rem 0 0;
   font-size: 0.95rem;
   color: var(--text-muted);
-  pointer-events: none;
   white-space: nowrap;
 }
 

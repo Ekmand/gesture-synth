@@ -97,10 +97,10 @@ export function Hud({
       </div>
 
       {mode === "gesture" ? (
-        <>
+        <div className={styles.chordBlock}>
           <p className={styles.chord}>{chord ?? "--"}</p>
           <p className={styles.quality}>{quality}</p>
-        </>
+        </div>
       ) : (
         <div className={styles.thereminReadout}>
           <p className={styles.hz}>{audioOn && pitchHz > 0 ? `${Math.round(pitchHz)} Hz` : "--"}</p>

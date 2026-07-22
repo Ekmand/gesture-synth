@@ -1,0 +1,113 @@
+.guide {
+  position: absolute;
+  left: 50%;
+  bottom: 7.25rem;
+  transform: translateX(-50%);
+  width: min(52rem, calc(100vw - 1.5rem));
+  pointer-events: none;
+  z-index: 6;
+  animation: rise 0.45s var(--ease-out);
+}
+
+.caption {
+  margin: 0 0 0.45rem;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 4.1rem;
+  padding: 0.45rem 0.2rem;
+  border-radius: 12px;
+  background: rgba(12, 18, 24, 0.62);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(10px);
+  transition:
+    border-color 0.2s var(--ease-out),
+    background 0.2s var(--ease-out),
+    transform 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+}
+
+.pad[data-active="true"] {
+  background: var(--mint-dim);
+  border-color: rgba(61, 255, 224, 0.55);
+  box-shadow: 0 0 22px rgba(61, 255, 224, 0.18);
+  transform: translateY(-3px);
+}
+
+.note {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.95rem, 2.4vw, 1.25rem);
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1;
+}
+
+.pad[data-active="true"] .note {
+  color: var(--mint);
+}
+
+.roman {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.hint {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100%;
+  padding: 0 0.15rem;
+}
+
+.pad[data-octave="true"] {
+  opacity: 0.72;
+}
+
+.pad[data-octave="true"] .note::after {
+  content: "";
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .guide {
+    bottom: 6.5rem;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .pad {
+    min-height: 3.2rem;
+  }
+}
