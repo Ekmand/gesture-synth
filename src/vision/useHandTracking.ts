@@ -30,21 +30,23 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
   const landmarkerRef = useRef<HandLandmarker | null>(null)
   const rafRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
-  const startedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
+    let activeStream: MediaStream | null = null
 
     async function start() {
-      if (startedRef.current) return
-      startedRef.current = true
       setStatus("requesting")
       setError(null)
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera API unavailable in this browser")
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 },
           audio: false,
         })
+        activeStream = stream
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop())
           return
@@ -53,9 +55,11 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         if (!video) throw new Error("Video element missing")
         video.srcObject = stream
         await video.play()
+        if (cancelled) return
 
         setStatus("loading")
         const vision = await FilesetResolver.forVisionTasks(WASM_URL)
+        if (cancelled) return
         let landmarker: HandLandmarker
         try {
           landmarker = await HandLandmarker.createFromOptions(vision, {
@@ -78,13 +82,13 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         }
         if (cancelled) {
           landmarker.close()
-          stream.getTracks().forEach((t) => t.stop())
           return
         }
         landmarkerRef.current = landmarker
         setStatus("ready")
 
         const tick = () => {
+          if (cancelled) return
           const v = videoRef.current
           const lm = landmarkerRef.current
           if (!v || !lm || v.readyState < 2) {
@@ -108,10 +112,10 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         }
         rafRef.current = requestAnimationFrame(tick)
       } catch (e) {
+        if (cancelled) return
         const message = e instanceof Error ? e.message : "Camera or model failed to start"
         setError(message)
         setStatus("error")
-        startedRef.current = false
       }
     }
 
@@ -122,10 +126,13 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       cancelAnimationFrame(rafRef.current)
       landmarkerRef.current?.close()
       landmarkerRef.current = null
+      handsRef.current = { left: null, right: null, result: null }
+      lastVideoTimeRef.current = -1
       const v = videoRef.current
-      const stream = v?.srcObject as MediaStream | null
+      const stream = (v?.srcObject as MediaStream | null) ?? activeStream
       stream?.getTracks().forEach((t) => t.stop())
       if (v) v.srcObject = null
+      activeStream = null
     }
   }, [videoRef])
 

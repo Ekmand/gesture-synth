@@ -203,14 +203,20 @@ export function Hud({
 
       <div className={styles.status}>{statusText}</div>
 
-      <a
-        className={styles.credit}
-        href="https://thegreatest.dev"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Developed by Ekmand
-      </a>
+      <div className={styles.credit}>
+        Developed by{' '}
+        <a href="https://thegreatest.dev" target="_blank" rel="noopener noreferrer">
+          Ethan
+        </a>{' '}
+        and{' '}
+        <a
+          href="https://www.instagram.com/indecisive.eric"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Eric
+        </a>
+      </div>
     </div>
   )
 }
