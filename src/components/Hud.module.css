@@ -227,10 +227,19 @@
   pointer-events: none;
 }
 
-.credit {
+.cornerLinks {
   position: absolute;
   bottom: 1rem;
   right: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+  pointer-events: none;
+}
+
+.github,
+.credit {
   pointer-events: auto;
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -239,6 +248,24 @@
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   backdrop-filter: blur(10px);
+}
+
+.github {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  transition: color 0.2s var(--ease-out), border-color 0.2s var(--ease-out);
+}
+
+.githubIcon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.github:hover {
+  color: var(--mint);
+  border-color: rgba(61, 255, 224, 0.35);
 }
 
 .credit a {
