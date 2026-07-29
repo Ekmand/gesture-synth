@@ -5,34 +5,46 @@ export const TUTORIAL_KEY = "music-synth-tutorial-done"
 
 const STEPS = [
   {
-    kicker: "Step 1 of 5",
+    kicker: "Step 1 of 7",
     title: "Camera & sound",
     body: "Allow webcam access, then click the play control to unlock audio. Stand an arm’s length from the camera with good lighting.",
-    diagram: null as null | "hands" | "mode",
+    diagram: null as null | "hands" | "mode" | "loop" | "keys",
   },
   {
-    kicker: "Step 2 of 5",
+    kicker: "Step 2 of 7",
     title: "Left hand = scale notes",
-    body: "Raise fingers to pick a scale degree (I–V). Index + pinky makes VI; add the thumb for VII. By default, tilt flips major ↔ minor — or lock major/minor in the left-hand settings.",
+    body: "Raise fingers to pick a scale degree (I\u2013V). Index + pinky makes VI; add the thumb for VII. By default, tilt flips major \u2194 minor \u2014 or lock major/minor in the left-hand settings.",
     diagram: "hands" as const,
   },
   {
-    kicker: "Step 3 of 5",
+    kicker: "Step 3 of 7",
     title: "Right hand = expression",
-    body: "Move up/down for volume. By default, 1–4 fingers pick triad / inversion / 7ths. Or lock a fixed chord style in settings and just use volume, tone, and octave.",
+    body: "Move up/down for volume. By default, 1\u20134 fingers pick triad / inversion / 7ths. Wrist tilt sweeps the tone filter \u2014 try a slow tilt for crescendo effects.",
     diagram: "hands" as const,
   },
   {
-    kicker: "Step 4 of 5",
+    kicker: "Step 4 of 7",
     title: "Customize the controls",
-    body: "Use the Left hand / Right hand menus under the key selector to simplify gestures — scale-only left hand, or a fixed chord style on the right.",
+    body: "Use the Left hand / Right hand menus under the key selector to simplify gestures \u2014 scale-only left hand, or a fixed chord style on the right.",
     diagram: "mode" as const,
   },
   {
-    kicker: "Step 5 of 5",
-    title: "Try Theremin mode",
-    body: "Switch to Theremin in the top bar for a classic feel — right hand height sets pitch, left hand height sets volume.",
-    diagram: "mode" as const,
+    kicker: "Step 5 of 7",
+    title: "Loop Pedal \u2014 Record & layer",
+    body: "Set BPM, time signature, and bar count in the bottom-right controls. Hit the red record button \u2014 a metronome count-in plays, then your gestures are captured. The loop auto-plays when recording ends. Stack up to 4 loop tracks!",
+    diagram: "loop" as const,
+  },
+  {
+    kicker: "Step 6 of 7",
+    title: "Edit & mix your loops",
+    body: "The beat grid shows your recorded loops as 16th-note cells. Click any cell to mute/unmute a beat. Use M (mute) and S (solo) per track, plus the volume slider to mix. Smooth filter sweeps and crescendos are preserved in the loop.",
+    diagram: "loop" as const,
+  },
+  {
+    kicker: "Step 7 of 7",
+    title: "Keyboard shortcuts",
+    body: "R = record/stop, Space = stop all, 1\u20134 = select track, M = mute track, S = solo track, Delete = clear track, Shift+Delete = clear all. Try Theremin mode for melodic solos over your chord loops!",
+    diagram: "keys" as const,
   },
 ]
 
@@ -85,6 +97,32 @@ export function Tutorial({ open, onClose }: Props) {
             <div className={styles.hand}>
               <h4>Theremin</h4>
               <p>Continuous pitch & volume from hand height.</p>
+            </div>
+          </div>
+        )}
+
+        {current.diagram === "loop" && (
+          <div className={styles.diagram}>
+            <div className={styles.hand}>
+              <h4>Record</h4>
+              <p>Set BPM + bars, hit record. Count-in plays, then perform your part.</p>
+            </div>
+            <div className={styles.hand}>
+              <h4>Layer</h4>
+              <p>Select tracks 1–4 and record again. All tracks play together.</p>
+            </div>
+          </div>
+        )}
+
+        {current.diagram === "keys" && (
+          <div className={styles.diagram}>
+            <div className={styles.hand}>
+              <h4>Performance</h4>
+              <p>R = record, Space = stop, 1–4 = tracks</p>
+            </div>
+            <div className={styles.hand}>
+              <h4>Mixing</h4>
+              <p>M = mute, S = solo, Del = clear track</p>
             </div>
           </div>
         )}

@@ -9,10 +9,35 @@ export class SynthEngine {
   private thereminGain: GainNode | null = null
   private mode: "gesture" | "theremin" = "gesture"
 
+  // Audio bus — everything connects here, routed through <audio> element
+  // so Chrome keeps audio alive in background tabs
+  private bus: GainNode | null = null
+  private bgAudio: HTMLAudioElement | null = null
+
   ensureContext(): AudioContext {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+
+      // Create the output bus — ALL audio goes through this
+      this.bus = this.ctx.createGain()
+      this.bus.gain.value = 1
+
+      // Route bus through a MediaStream → <audio> element
+      // Chrome never suspends pages with active <audio> elements
+      const mediaDest = this.ctx.createMediaStreamDestination()
+      this.bus.connect(mediaDest)
+      this.bgAudio = document.createElement("audio")
+      this.bgAudio.srcObject = mediaDest.stream
+      this.bgAudio.autoplay = true
+      this.bgAudio.volume = 1.0
+      this.bgAudio.play().catch(() => { /* will be retried on user gesture */ })
+
+      // Also connect to ctx.destination as fallback
+      // (some browsers don't support MediaStreamDestination well)
+      this.bus.connect(this.ctx.destination)
+
+      // Synth signal chain → bus
       this.waveShaper = this.ctx.createWaveShaper()
       this.waveShaper.curve = null
       this.waveShaper.oversample = "4x"
@@ -24,10 +49,41 @@ export class SynthEngine {
       this.masterGain.gain.value = 0
       this.waveShaper.connect(this.filter)
       this.filter.connect(this.masterGain)
-      this.masterGain.connect(this.ctx.destination)
+      this.masterGain.connect(this.bus)
+
+      // Resume AudioContext if Chrome suspends it
+      const ctx = this.ctx
+      const audio = this.bgAudio
+      document.addEventListener("visibilitychange", () => {
+        if (ctx.state === "suspended") void ctx.resume()
+        // Re-play the audio element (Chrome may pause it)
+        if (audio.paused) audio.play().catch(() => {})
+      })
+      ctx.addEventListener("statechange", () => {
+        if (ctx.state === "suspended") void ctx.resume()
+      })
+
+      // Signal active media
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "Gesture Synth",
+          artist: "Loop Playback",
+        })
+        navigator.mediaSession.playbackState = "playing"
+      }
     }
     if (this.ctx.state === "suspended") void this.ctx.resume()
     return this.ctx
+  }
+
+  getContext(): AudioContext {
+    return this.ensureContext()
+  }
+
+  // Output bus — LoopEngine tracks connect here for background tab support
+  getOutputBus(): GainNode {
+    this.ensureContext()
+    return this.bus!
   }
 
   setMode(mode: "gesture" | "theremin") {
@@ -66,11 +122,7 @@ export class SynthEngine {
     const key = freqs.map((f) => f.toFixed(1)).join(",")
     if (key === this.currentKey) return
     this.oscillators.forEach((o) => {
-      try {
-        o.stop()
-      } catch {
-        /* already stopped */
-      }
+      try { o.stop() } catch { /* already stopped */ }
     })
     this.oscillators = freqs.map((hz) => {
       const osc = this.ctx!.createOscillator()
@@ -110,11 +162,7 @@ export class SynthEngine {
 
   private stopChordOscillators() {
     this.oscillators.forEach((o) => {
-      try {
-        o.stop()
-      } catch {
-        /* already stopped */
-      }
+      try { o.stop() } catch { /* already stopped */ }
     })
     this.oscillators = []
     this.currentKey = null
@@ -122,11 +170,7 @@ export class SynthEngine {
 
   private stopTheremin() {
     if (this.thereminOsc) {
-      try {
-        this.thereminOsc.stop()
-      } catch {
-        /* already stopped */
-      }
+      try { this.thereminOsc.stop() } catch { /* already stopped */ }
       this.thereminOsc.disconnect()
       this.thereminOsc = null
     }

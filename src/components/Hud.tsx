@@ -23,6 +23,7 @@ type Props = {
   chord: string | null
   quality: string
   pitchHz: number
+  octaveDown: boolean
   onHelp: () => void
   statusText: string
   audioOn: boolean
@@ -42,6 +43,7 @@ export function Hud({
   chord,
   quality,
   pitchHz,
+  octaveDown,
   onHelp,
   statusText,
   audioOn,
@@ -193,6 +195,9 @@ export function Hud({
         <div className={styles.chordBlock}>
           <p className={styles.chord}>{chord ?? "--"}</p>
           <p className={styles.quality}>{quality}</p>
+          {octaveDown && (
+            <span className={styles.octaveBadge}>-8ve</span>
+          )}
         </div>
       ) : (
         <div className={styles.thereminReadout}>

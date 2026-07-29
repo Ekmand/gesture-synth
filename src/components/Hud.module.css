@@ -190,6 +190,26 @@
   white-space: nowrap;
 }
 
+.octaveBadge {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--coral);
+  background: var(--coral-dim);
+  border: 1px solid var(--coral);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(255, 107, 90, 0.4), 0 0 24px rgba(255, 107, 90, 0.2);
+  animation: octaveGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes octaveGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(255, 107, 90, 0.4), 0 0 24px rgba(255, 107, 90, 0.2); }
+  50% { box-shadow: 0 0 18px rgba(255, 107, 90, 0.6), 0 0 36px rgba(255, 107, 90, 0.3); }
+}
+
 .thereminReadout {
   position: absolute;
   left: 50%;
@@ -229,7 +249,7 @@
 
 .cornerLinks {
   position: absolute;
-  bottom: 1rem;
+  bottom: 1.8rem;
   right: 1rem;
   display: flex;
   flex-direction: column;
