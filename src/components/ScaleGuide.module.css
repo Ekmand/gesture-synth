@@ -1,7 +1,7 @@
 .guide {
   position: absolute;
   left: 50%;
-  bottom: 7.25rem;
+  bottom: 14rem;
   transform: translateX(-50%);
   width: min(52rem, calc(100vw - 1.5rem));
   pointer-events: none;
@@ -96,7 +96,7 @@
 
 @media (max-width: 720px) {
   .guide {
-    bottom: 6.5rem;
+    bottom: 12rem;
   }
 
   .hint {

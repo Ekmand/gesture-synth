@@ -142,7 +142,7 @@ export function LoopControls({
   }
 
   return (
-    <div className={styles.loopBar}>
+    <div className={styles.loopBar} data-metro-open={metroOpen || undefined}>
       {/* Grid config */}
       {isIdle && !hasContent && (
         <>

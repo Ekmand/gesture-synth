@@ -1,10 +1,11 @@
 .wrapper {
   position: absolute;
-  bottom: 7rem;
-  right: 1rem;
+  bottom: 4.4rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 8;
   pointer-events: auto;
-  max-width: calc(100vw - 2rem);
+  max-width: min(52rem, calc(100vw - 2rem));
   max-height: 40vh;
   overflow: auto;
 }
@@ -318,8 +319,9 @@
 /* Count-in overlay */
 .countIn {
   position: absolute;
-  bottom: 7rem;
-  right: 1rem;
+  bottom: 4.4rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 9;
   display: flex;
   align-items: center;
@@ -355,8 +357,11 @@
 
 @media (max-width: 480px) {
   .wrapper {
-    right: 0.5rem;
+    bottom: 5.2rem;
     max-width: calc(100vw - 1rem);
+  }
+  .countIn {
+    bottom: 5.2rem;
   }
   .cell {
     width: 0.75rem;

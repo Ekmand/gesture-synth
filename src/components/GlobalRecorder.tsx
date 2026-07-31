@@ -39,15 +39,7 @@ export function GlobalRecorder({ visible, audioCtx }: Props) {
       // For now, capture whatever is going to the speakers via the context
       audioDest.stream.getAudioTracks().forEach((t) => tracks.push(t))
 
-      // We need to connect the audio output to the dest
-      // Create a splitter: masterGain → destination (speakers) AND → audioDest (recording)
-      // Access masterGain through the synth engine
-      const masterGains = document.querySelectorAll("[data-audio-tap]")
-      // Fallback: just try to get audio from context
-      // The cleanest way: create an AnalyserNode connected to dest
-      // But we can't easily tap the output without modifying the audio graph
-
-      // Better approach: use the existing audio context's destination stream if available
+      // Tap speaker output when the browser exposes destination.stream
       // @ts-expect-error - captureStream is non-standard but widely supported
       if (audioCtx.destination.stream) {
         // @ts-expect-error

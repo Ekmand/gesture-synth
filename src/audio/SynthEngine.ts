@@ -19,23 +19,26 @@ export class SynthEngine {
       this.ctx = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
 
-      // Create the output bus — ALL audio goes through this
+      // Shared output bus (live synth + loop tracks). Hear it once via destination —
+      // dual-routing to MediaStreamDestination as well doubles the signal and causes
+      // comb-filter / phase artifacts when oscillators restart on note changes.
       this.bus = this.ctx.createGain()
       this.bus.gain.value = 1
-
-      // Route bus through a MediaStream → <audio> element
-      // Chrome never suspends pages with active <audio> elements
-      const mediaDest = this.ctx.createMediaStreamDestination()
-      this.bus.connect(mediaDest)
-      this.bgAudio = document.createElement("audio")
-      this.bgAudio.srcObject = mediaDest.stream
-      this.bgAudio.autoplay = true
-      this.bgAudio.volume = 1.0
-      this.bgAudio.play().catch(() => { /* will be retried on user gesture */ })
-
-      // Also connect to ctx.destination as fallback
-      // (some browsers don't support MediaStreamDestination well)
       this.bus.connect(this.ctx.destination)
+
+      // Silent MediaStream → <audio> keepalive so Chrome is less likely to suspend
+      // the tab / AudioContext while loops play in the background. Muted so it does
+      // not mix a second copy of the bus into the speakers.
+      const keepAliveDest = this.ctx.createMediaStreamDestination()
+      const keepAlive = this.ctx.createConstantSource()
+      keepAlive.offset.value = 0
+      keepAlive.connect(keepAliveDest)
+      keepAlive.start()
+      this.bgAudio = document.createElement("audio")
+      this.bgAudio.srcObject = keepAliveDest.stream
+      this.bgAudio.autoplay = true
+      this.bgAudio.muted = true
+      this.bgAudio.play().catch(() => { /* retried on user gesture / visibility */ })
 
       // Synth signal chain → bus
       this.waveShaper = this.ctx.createWaveShaper()
@@ -51,19 +54,16 @@ export class SynthEngine {
       this.filter.connect(this.masterGain)
       this.masterGain.connect(this.bus)
 
-      // Resume AudioContext if Chrome suspends it
       const ctx = this.ctx
       const audio = this.bgAudio
       document.addEventListener("visibilitychange", () => {
         if (ctx.state === "suspended") void ctx.resume()
-        // Re-play the audio element (Chrome may pause it)
         if (audio.paused) audio.play().catch(() => {})
       })
       ctx.addEventListener("statechange", () => {
         if (ctx.state === "suspended") void ctx.resume()
       })
 
-      // Signal active media
       if ("mediaSession" in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: "Gesture Synth",

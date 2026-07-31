@@ -1,7 +1,8 @@
 .loopBar {
   position: absolute;
-  bottom: 3.8rem;
-  right: 1rem;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 6;
   display: flex;
   align-items: center;
@@ -11,7 +12,16 @@
   border: 1px solid var(--stroke);
   border-radius: 999px;
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   pointer-events: auto;
+  max-width: calc(100vw - 12rem);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Lift the whole bar above the sequencer while the metro popover is open */
+.loopBar[data-metro-open="true"] {
+  z-index: 12;
 }
 
 .bpmInput {
@@ -154,10 +164,11 @@
   transform: translateX(-50%);
   margin-bottom: 6px;
   padding: 0.5rem 0.6rem;
-  background: var(--bg-panel-solid);
+  background: var(--bg-panel);
   border: 1px solid var(--stroke);
   border-radius: 10px;
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;

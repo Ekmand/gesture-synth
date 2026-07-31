@@ -49,7 +49,7 @@ class LoopTrack {
     this.ctx = ctx
     this.trackGain = ctx.createGain()
     this.trackGain.gain.value = 1
-    this.trackGain.connect(outputBus) // route through shared bus → <audio> element
+    this.trackGain.connect(outputBus)
   }
 
   init(totalSteps: number) {

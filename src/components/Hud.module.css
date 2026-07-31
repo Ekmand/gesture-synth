@@ -213,7 +213,7 @@
 .thereminReadout {
   position: absolute;
   left: 50%;
-  bottom: 3rem;
+  bottom: 4.8rem;
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
