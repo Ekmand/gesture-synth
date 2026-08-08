@@ -54,7 +54,9 @@ export function BeatGrid({
   onTrackSolo,
   visible,
 }: Props) {
-  const [minimized, setMinimized] = useState(false)
+  const [minimized, setMinimized] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches,
+  )
   const [menu, setMenu] = useState<MenuState>(null)
   const [lastChord, setLastChord] = useState<string>("I")
   const dragRef = useRef<{ painting: boolean; chord: string; trackIdx: number } | null>(null)

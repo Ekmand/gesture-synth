@@ -214,6 +214,7 @@ export function LoopControls({
           className={styles.metroExpandBtn}
           onClick={() => setMetroOpen((p) => !p)}
           aria-label="Metronome settings"
+          aria-expanded={metroOpen}
         >
           <svg width="6" height="6" viewBox="0 0 6 6"><polygon points="0,0 6,0 3,5" fill="currentColor"/></svg>
         </button>

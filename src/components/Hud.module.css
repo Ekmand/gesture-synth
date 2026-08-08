@@ -159,6 +159,33 @@
   line-height: 1.35;
 }
 
+.configFooter {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--stroke);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.configFooterLink,
+.configFooter a {
+  color: var(--mint);
+  text-decoration: none;
+}
+
+.configFooterLink:hover,
+.configFooter a:hover {
+  text-decoration: underline;
+}
+
+.configFooterSep {
+  opacity: 0.5;
+}
+
 .selectSm {
   width: 100%;
   background: rgba(0, 0, 0, 0.28);
@@ -386,7 +413,7 @@
   }
 
   .chordBlock {
-    top: 34%;
+    top: 42%;
   }
 
   .config {
@@ -398,21 +425,24 @@
     max-height: min(68dvh, calc(100% - 6rem));
     border-radius: 18px;
     animation: sheetIn 0.28s var(--ease-out);
+    z-index: 20;
+  }
+
+  .settingsBackdrop {
+    z-index: 19;
   }
 
   .configHint {
     display: none;
   }
 
-  .status {
-    max-width: 48%;
-    font-size: 0.68rem;
+  .configFooter {
+    display: flex;
   }
 
-  .github,
-  .credit {
-    font-size: 0.68rem;
-    padding: 0.28rem 0.55rem;
+  /* Credits/status fight the loop dock — hide on phones */
+  .bottomBar {
+    display: none;
   }
 }
 

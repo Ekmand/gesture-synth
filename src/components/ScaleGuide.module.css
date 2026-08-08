@@ -105,8 +105,22 @@
 
 @media (max-width: 720px) {
   .guide {
-    bottom: max(12rem, calc(env(safe-area-inset-bottom) + 10.5rem));
+    /* Sit under header + global record bar; leave bottom free for loop dock */
+    top: max(5.55rem, calc(env(safe-area-inset-top) + 5.1rem));
+    bottom: auto;
     width: min(100%, calc(100vw - 0.75rem));
+    z-index: 7;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 
   .caption {

@@ -233,6 +233,32 @@ export function Hud({
                   : "Chord style is locked. Right hand still controls volume, tone, and octave."}
               </p>
             </div>
+
+            <div className={styles.configFooter}>
+              <a
+                className={styles.configFooterLink}
+                href="https://github.com/Ekmand/music-synth"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
+              <span className={styles.configFooterSep}>·</span>
+              <span>
+                by{" "}
+                <a href="https://thegreatest.dev" target="_blank" rel="noopener noreferrer">
+                  Ethan
+                </a>
+                {" & "}
+                <a
+                  href="https://www.instagram.com/indecisive.eric"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Eric
+                </a>
+              </span>
+            </div>
           </div>
         </>
       )}

@@ -3,7 +3,7 @@
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  z-index: 14;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -397,4 +397,77 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+@media (max-width: 720px) {
+  .loopBar {
+    left: max(0.5rem, env(safe-area-inset-left));
+    right: max(0.5rem, env(safe-area-inset-right));
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    transform: none;
+    width: auto;
+    max-width: none;
+    border-radius: 16px;
+    padding: 0.45rem 0.55rem;
+    gap: 0.35rem;
+    justify-content: flex-start;
+    row-gap: 0.4rem;
+  }
+
+  .bpmInput {
+    width: 2.6rem;
+    font-size: 0.68rem;
+  }
+
+  .gridSelect {
+    font-size: 0.62rem;
+    padding: 0.28rem 0.3rem;
+  }
+
+  .gridLabel {
+    font-size: 0.52rem;
+  }
+
+  .tapBtn {
+    font-size: 0.52rem;
+    padding: 0.28rem 0.4rem;
+  }
+
+  .sep {
+    display: none;
+  }
+
+  .trackBadge {
+    order: -1;
+  }
+
+  .transport {
+    margin-left: auto;
+  }
+
+  .progressWrap {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .progressTrack {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .actionBtn {
+    font-size: 0.58rem;
+    padding: 0.28rem 0.45rem;
+  }
+
+  .metroPopover {
+    left: 0;
+    transform: none;
+    min-width: min(12rem, calc(100vw - 2rem));
+  }
+
+  .recLabel {
+    font-size: 0.58rem;
+  }
 }
