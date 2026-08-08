@@ -20,9 +20,7 @@ export function StartGate({ onStart, cameraReady, cameraError }: Props) {
         Play chords with your hands. Webcam in, speakers on — no hardware required.
       </p>
       {cameraError ? (
-        <p className={styles.cta} style={{ color: "var(--coral)" }}>
-          {cameraError}
-        </p>
+        <p className={styles.error}>{cameraError}</p>
       ) : (
         <>
           <div className={styles.play} aria-hidden>

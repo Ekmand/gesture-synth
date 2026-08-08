@@ -87,6 +87,7 @@ export default function App() {
   const [live, setLive] = useState<LiveState>(idleLive)
   const liveFrameRef = useRef<LiveState>(idleLive)
   const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const tutorialBooted = useRef(false)
 
   const getResult = useCallback(() => handsRef.current.result, [handsRef])
@@ -512,7 +513,13 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <video ref={videoRef} className={styles.video} playsInline muted autoPlay />
+      <video
+        ref={videoRef}
+        className={`${styles.video}${!audioOn ? ` ${styles.videoDimmed}` : ""}`}
+        playsInline
+        muted
+        autoPlay
+      />
       <HandCanvas
         videoRef={videoRef} getResult={getResult}
         getWaveParams={getWaveParams} dimmed={!audioOn}
@@ -528,7 +535,9 @@ export default function App() {
         pitchHz={live.pitchHz}
         octaveDown={live.octaveDown}
         onHelp={() => setTutorialOpen(true)}
-        statusText={statusText} audioOn={audioOn}
+        statusText={statusText}
+        audioOn={audioOn}
+        onSettingsOpenChange={setSettingsOpen}
       />
 
       <GlobalRecorder
@@ -537,8 +546,9 @@ export default function App() {
       />
 
       <ScaleGuide
-        keyHz={keyHz} chord={live.chord}
-        visible={mode === "gesture" && audioOn}
+        keyHz={keyHz}
+        chord={live.chord}
+        visible={mode === "gesture" && audioOn && !settingsOpen}
         scaleOnly={gestureSettings.modeControl === "fixed"}
       />
 

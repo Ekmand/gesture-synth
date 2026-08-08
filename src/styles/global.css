@@ -11,13 +11,26 @@ html,
 body,
 #root {
   margin: 0;
-  height: 100%;
   width: 100%;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
   background: var(--bg-deep);
   color: var(--text);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+@supports (height: 100svh) {
+  html,
+  body,
+  #root {
+    height: 100svh;
+    max-height: 100svh;
+  }
 }
 
 button,

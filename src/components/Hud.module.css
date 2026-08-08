@@ -1,31 +1,47 @@
 .hud {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 12;
   pointer-events: none;
+  padding:
+    max(0.65rem, env(safe-area-inset-top))
+    max(0.65rem, env(safe-area-inset-right))
+    max(0.65rem, env(safe-area-inset-bottom))
+    max(0.65rem, env(safe-area-inset-left));
 }
 
+.topBar,
 .topLeft,
 .topRight,
-.bottomCenter,
-.bottomLeft {
+.config,
+.bottomBar,
+.settingsBackdrop {
   pointer-events: auto;
 }
 
-.topLeft {
+.topBar {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: max(0.65rem, env(safe-area-inset-top));
+  left: max(0.65rem, env(safe-area-inset-left));
+  right: max(0.65rem, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.topLeft {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  max-width: min(20rem, calc(100vw - 2rem));
+  gap: 0.55rem;
+  min-width: 0;
+  max-width: min(22rem, calc(100% - 5.5rem));
 }
 
 .brand {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.35rem;
+  font-size: clamp(1.05rem, 3.5vw, 1.35rem);
   letter-spacing: -0.03em;
   margin: 0;
   text-shadow: 0 2px 16px rgba(0, 0, 0, 0.55);
@@ -34,7 +50,7 @@
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
 }
 
@@ -43,22 +59,25 @@
   border: 1px solid var(--stroke);
   border-radius: 999px;
   backdrop-filter: blur(12px);
-  padding: 0.35rem;
+  padding: 0.3rem;
   display: inline-flex;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .modeBtn,
 .iconBtn {
   border-radius: 999px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--text-muted);
   transition: background 0.2s var(--ease-out), color 0.2s var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.modeBtn[data-active="true"] {
+.modeBtn[data-active="true"],
+.iconBtn[data-active="true"] {
   background: var(--mint-dim);
   color: var(--mint);
 }
@@ -75,25 +94,48 @@
   color: var(--text);
 }
 
-.select {
-  background: var(--bg-panel);
-  border: 1px solid var(--stroke);
-  border-radius: 999px;
-  padding: 0.45rem 0.9rem;
-  backdrop-filter: blur(12px);
-  color: var(--mint);
-  font-weight: 500;
+.settingsBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  border: 0;
+  padding: 0;
+  background: rgba(8, 12, 16, 0.45);
+  backdrop-filter: blur(2px);
 }
 
 .config {
+  position: absolute;
+  z-index: 16;
+  top: calc(max(0.65rem, env(safe-area-inset-top)) + 5.5rem);
+  left: max(0.65rem, env(safe-area-inset-left));
+  width: min(22rem, calc(100% - 1.3rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  max-height: min(70dvh, calc(100% - 8rem));
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.65rem 0.75rem;
-  background: var(--bg-panel);
+  gap: 0.65rem;
+  padding: 0.75rem;
+  background: var(--bg-panel-solid);
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
-  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  -webkit-overflow-scrolling: touch;
+  animation: panelIn 0.25s var(--ease-out);
+}
+
+.configHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.configTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
 }
 
 .configRow {
@@ -122,20 +164,18 @@
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid var(--stroke);
   border-radius: 10px;
-  padding: 0.4rem 0.65rem;
+  padding: 0.55rem 0.65rem;
   color: var(--mint);
   font-weight: 500;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
 }
 
 .topRight {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.55rem;
+  gap: 0.4rem;
+  flex-shrink: 0;
 }
 
 .meter {
@@ -145,8 +185,8 @@
 }
 
 .bar {
-  width: 4.4rem;
-  height: 7px;
+  width: 3.6rem;
+  height: 6px;
   border-radius: 2px;
   background: rgba(232, 244, 248, 0.12);
   transition: background 0.12s linear;
@@ -158,24 +198,26 @@
 }
 
 .tone {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
 .chordBlock {
   position: absolute;
   left: 50%;
-  top: 42%;
+  top: 38%;
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
+  max-width: calc(100% - 2rem);
 }
 
 .chord {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(3rem, 10vw, 5rem);
+  font-size: clamp(2.4rem, 12vw, 5rem);
   letter-spacing: -0.04em;
   margin: 0;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
@@ -185,9 +227,11 @@
 
 .quality {
   margin: 0.35rem 0 0;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 2.8vw, 0.95rem);
   color: var(--text-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .octaveBadge {
@@ -213,16 +257,17 @@
 .thereminReadout {
   position: absolute;
   left: 50%;
-  bottom: 4.8rem;
+  bottom: max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
   transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
+  max-width: calc(100% - 2rem);
 }
 
 .hz {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-size: clamp(1.8rem, 8vw, 3.2rem);
   margin: 0;
   color: var(--coral);
 }
@@ -233,40 +278,50 @@
   font-size: 0.9rem;
 }
 
-.status {
+.bottomBar {
   position: absolute;
-  bottom: 1rem;
-  left: 1rem;
-  font-size: 0.8rem;
+  left: max(0.65rem, env(safe-area-inset-left));
+  right: max(0.65rem, env(safe-area-inset-right));
+  bottom: max(0.65rem, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.status {
+  font-size: 0.75rem;
   color: var(--text-muted);
   background: var(--bg-panel);
   border: 1px solid var(--stroke);
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
+  padding: 0.3rem 0.65rem;
   backdrop-filter: blur(10px);
+  max-width: min(58%, 18rem);
   pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cornerLinks {
-  position: absolute;
-  bottom: 1.8rem;
-  right: 1rem;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.45rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
   pointer-events: none;
 }
 
 .github,
 .credit {
   pointer-events: auto;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   background: var(--bg-panel);
   border: 1px solid var(--stroke);
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
+  padding: 0.3rem 0.65rem;
   backdrop-filter: blur(10px);
 }
 
@@ -276,6 +331,7 @@
   gap: 0.4rem;
   text-decoration: none;
   transition: color 0.2s var(--ease-out), border-color 0.2s var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .githubIcon {
@@ -296,4 +352,94 @@
 
 .credit a:hover {
   color: var(--mint);
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .topLeft {
+    max-width: calc(100% - 4.5rem);
+  }
+
+  .modeBtn,
+  .iconBtn {
+    padding: 0.38rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .bar {
+    width: 2.6rem;
+    height: 5px;
+  }
+
+  .tone {
+    font-size: 0.7rem;
+  }
+
+  .chordBlock {
+    top: 34%;
+  }
+
+  .config {
+    top: auto;
+    bottom: max(0.65rem, env(safe-area-inset-bottom));
+    left: max(0.65rem, env(safe-area-inset-left));
+    right: max(0.65rem, env(safe-area-inset-right));
+    width: auto;
+    max-height: min(68dvh, calc(100% - 6rem));
+    border-radius: 18px;
+    animation: sheetIn 0.28s var(--ease-out);
+  }
+
+  .configHint {
+    display: none;
+  }
+
+  .status {
+    max-width: 48%;
+    font-size: 0.68rem;
+  }
+
+  .github,
+  .credit {
+    font-size: 0.68rem;
+    padding: 0.28rem 0.55rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand {
+    font-size: 1.05rem;
+  }
+
+  .topRight .tone {
+    display: none;
+  }
+
+  .credit {
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

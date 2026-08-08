@@ -1,27 +1,36 @@
 .guide {
   position: absolute;
   left: 50%;
-  bottom: 14rem;
+  /* Clear loop pedal / beat grid stack while honoring safe areas */
+  bottom: max(14rem, calc(env(safe-area-inset-bottom) + 12.5rem));
   transform: translateX(-50%);
-  width: min(52rem, calc(100vw - 1.5rem));
+  width: min(52rem, calc(100vw - 1rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
   pointer-events: none;
   z-index: 6;
   animation: rise 0.45s var(--ease-out);
+  padding: 0 max(0.25rem, env(safe-area-inset-left)) 0 max(0.25rem, env(safe-area-inset-right));
+  box-sizing: border-box;
 }
 
 .caption {
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.4rem;
   text-align: center;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  padding: 0 0.5rem;
+}
+
+.captionShort {
+  display: none;
 }
 
 .row {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .pad {
@@ -29,9 +38,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
-  min-height: 4.1rem;
-  padding: 0.45rem 0.2rem;
+  gap: 0.12rem;
+  min-height: 3.8rem;
+  padding: 0.4rem 0.15rem;
   border-radius: 12px;
   background: rgba(12, 18, 24, 0.62);
   border: 1px solid var(--stroke);
@@ -53,7 +62,7 @@
 .note {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(0.95rem, 2.4vw, 1.25rem);
+  font-size: clamp(0.85rem, 2.4vw, 1.25rem);
   letter-spacing: -0.03em;
   color: var(--text);
   line-height: 1;
@@ -64,19 +73,19 @@
 }
 
 .roman {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.04em;
 }
 
 .hint {
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
   text-align: center;
-  line-height: 1.2;
+  line-height: 1.15;
   max-width: 100%;
-  padding: 0 0.15rem;
+  padding: 0 0.1rem;
 }
 
 .pad[data-octave="true"] {
@@ -96,14 +105,53 @@
 
 @media (max-width: 720px) {
   .guide {
-    bottom: 12rem;
+    bottom: max(12rem, calc(env(safe-area-inset-bottom) + 10.5rem));
+    width: min(100%, calc(100vw - 0.75rem));
+  }
+
+  .caption {
+    font-size: 0.62rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .captionFull {
+    display: none;
+  }
+
+  .captionShort {
+    display: inline;
+  }
+
+  .row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem;
+  }
+
+  .pad {
+    min-height: 2.55rem;
+    padding: 0.3rem 0.1rem;
+    border-radius: 10px;
   }
 
   .hint {
     display: none;
   }
 
+  .roman {
+    font-size: 0.55rem;
+  }
+
+  .note {
+    font-size: clamp(0.8rem, 4.2vw, 1rem);
+  }
+}
+
+@media (max-width: 380px) {
   .pad {
-    min-height: 3.2rem;
+    min-height: 2.3rem;
+  }
+
+  .roman {
+    display: none;
   }
 }

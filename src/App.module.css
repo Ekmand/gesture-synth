@@ -2,16 +2,33 @@
   position: relative;
   width: 100%;
   height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
   background: var(--bg-deep);
 }
 
+@supports (height: 100svh) {
+  .app {
+    height: 100svh;
+    max-height: 100svh;
+  }
+}
+
 .video {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  background: #0b1014;
   pointer-events: none;
+  z-index: 0;
+}
+
+.videoDimmed {
+  filter: grayscale(0.85) brightness(0.55);
 }
 
 :global(.hand-canvas) {
@@ -20,10 +37,8 @@
   width: 100%;
   height: 100%;
   display: block;
-}
-
-:global(.hand-canvas--dimmed) {
-  filter: grayscale(0.85) brightness(0.55);
+  z-index: 1;
+  pointer-events: none;
 }
 
 :global(.visually-hidden) {

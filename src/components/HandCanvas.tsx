@@ -85,55 +85,71 @@ export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed }: Props
     if (!canvas) return
 
     const resize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const w = window.innerWidth
+      const h = window.innerHeight
+      canvas.width = Math.max(1, Math.floor(w * dpr))
+      canvas.height = Math.max(1, Math.floor(h * dpr))
+      canvas.style.width = `${w}px`
+      canvas.style.height = `${h}px`
+      const ctx = canvas.getContext("2d")
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
     resize()
     window.addEventListener("resize", resize)
+    window.visualViewport?.addEventListener("resize", resize)
 
     let raf = 0
     const paint = () => {
       const video = videoRef.current
       const ctx = canvas.getContext("2d")
-      if (!ctx || !video || !video.videoWidth) {
+      const cssW = window.innerWidth
+      const cssH = window.innerHeight
+      if (!ctx) {
         raf = requestAnimationFrame(paint)
         return
       }
-      const { width: cw, height: ch } = canvas
-      const { sx, sy, sWidth, sHeight } = coverCrop(
-        video.videoWidth,
-        video.videoHeight,
-        cw,
-        ch,
-      )
-      ctx.save()
-      ctx.clearRect(0, 0, cw, ch)
-      ctx.translate(cw, 0)
-      ctx.scale(-1, 1)
-      ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cw, ch)
 
-      const result = getResult()
-      if (result) {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.55)"
-        for (const hand of result.landmarks) {
-          for (const pt of hand) {
-            const lx = pt.x * video.videoWidth
-            const ly = pt.y * video.videoHeight
-            const dx = ((lx - sx) / sWidth) * cw
-            const dy = ((ly - sy) / sHeight) * ch
-            ctx.beginPath()
-            ctx.arc(dx, dy, 4, 0, Math.PI * 2)
-            ctx.fill()
+      ctx.clearRect(0, 0, cssW, cssH)
+
+      // Soft vignette over the live <video> background
+      const g = ctx.createRadialGradient(
+        cssW / 2,
+        cssH / 2,
+        cssH * 0.2,
+        cssW / 2,
+        cssH / 2,
+        cssH * 0.75,
+      )
+      g.addColorStop(0, "rgba(11, 16, 20, 0)")
+      g.addColorStop(1, dimmed ? "rgba(11, 16, 20, 0.72)" : "rgba(11, 16, 20, 0.45)")
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, cssW, cssH)
+
+      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+        const { sx, sy, sWidth, sHeight } = coverCrop(
+          video.videoWidth,
+          video.videoHeight,
+          cssW,
+          cssH,
+        )
+        const result = getResult()
+        if (result) {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.7)"
+          for (const hand of result.landmarks) {
+            for (const pt of hand) {
+              // Match CSS-mirrored video: flip X in source space
+              const lx = (1 - pt.x) * video.videoWidth
+              const ly = pt.y * video.videoHeight
+              const dx = ((lx - sx) / sWidth) * cssW
+              const dy = ((ly - sy) / sHeight) * cssH
+              ctx.beginPath()
+              ctx.arc(dx, dy, 4, 0, Math.PI * 2)
+              ctx.fill()
+            }
           }
         }
       }
-      ctx.restore()
-
-      const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
-      g.addColorStop(0, "rgba(11, 16, 20, 0)")
-      g.addColorStop(1, "rgba(11, 16, 20, 0.55)")
-      ctx.fillStyle = g
-      ctx.fillRect(0, 0, cw, ch)
 
       const wave = getWaveParams()
       drawWaves(ctx, wave.volume, wave.qualityIndex, wave.tone, wave.chord)
@@ -144,14 +160,9 @@ export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed }: Props
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", resize)
+      window.visualViewport?.removeEventListener("resize", resize)
     }
-  }, [videoRef, getResult, getWaveParams])
+  }, [videoRef, getResult, getWaveParams, dimmed])
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className={`hand-canvas${dimmed ? " hand-canvas--dimmed" : ""}`}
-      aria-hidden
-    />
-  )
+  return <canvas ref={canvasRef} className="hand-canvas" aria-hidden />
 }

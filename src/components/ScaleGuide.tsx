@@ -21,10 +21,15 @@ export function ScaleGuide({ keyHz, chord, visible, scaleOnly = false }: Props) 
   return (
     <div className={styles.guide} aria-label={`${keyLabel} scale guide`}>
       <p className={styles.caption}>
-        Left hand · {keyLabel}
-        {scaleOnly
-          ? " — fingers choose the note (mode locked in settings)"
-          : " — fingers choose the note; tilt for major/minor"}
+        <span className={styles.captionFull}>
+          Left hand · {keyLabel}
+          {scaleOnly
+            ? " — fingers choose the note (mode locked in settings)"
+            : " — fingers choose the note; tilt for major/minor"}
+        </span>
+        <span className={styles.captionShort}>
+          {keyLabel} · left hand picks the note
+        </span>
       </p>
       <div className={styles.row}>
         {degrees.map((d, i) => {

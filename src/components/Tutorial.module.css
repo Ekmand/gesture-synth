@@ -152,8 +152,34 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 720px) {
+  .backdrop {
+    align-items: flex-end;
+    padding:
+      max(0.75rem, env(safe-area-inset-top))
+      max(0.75rem, env(safe-area-inset-right))
+      max(0.75rem, env(safe-area-inset-bottom))
+      max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .card {
+    width: 100%;
+    max-height: min(85dvh, 100%);
+    overflow: auto;
+    padding: 1.25rem 1.15rem 1.1rem;
+    border-radius: 18px;
+  }
+
+  .title {
+    font-size: 1.35rem;
+  }
+
   .diagram {
     grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    gap: 0.65rem;
   }
 }

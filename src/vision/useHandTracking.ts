@@ -23,6 +23,34 @@ export type HandTrackingStatus =
   | "ready"
   | "error"
 
+function waitForVideoDimensions(video: HTMLVideoElement, timeoutMs = 8000): Promise<void> {
+  if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      cleanup()
+      reject(new Error("Camera started but no video frames arrived. Reload and try again."))
+    }, timeoutMs)
+
+    const onReady = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        cleanup()
+        resolve()
+      }
+    }
+
+    const cleanup = () => {
+      window.clearTimeout(timer)
+      video.removeEventListener("loadedmetadata", onReady)
+      video.removeEventListener("loadeddata", onReady)
+      video.removeEventListener("playing", onReady)
+    }
+
+    video.addEventListener("loadedmetadata", onReady)
+    video.addEventListener("loadeddata", onReady)
+    video.addEventListener("playing", onReady)
+  })
+}
+
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [status, setStatus] = useState<HandTrackingStatus>("idle")
   const [error, setError] = useState<string | null>(null)
@@ -33,33 +61,58 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
 
   useEffect(() => {
     let cancelled = false
-    let activeStream: MediaStream | null = null
+    let stream: MediaStream | null = null
 
     async function start() {
       setStatus("requesting")
       setError(null)
       try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("Camera API unavailable in this browser")
+        if (!window.isSecureContext) {
+          throw new Error(
+            "Camera needs HTTPS. Open the https:// address (not http://), then accept the certificate warning.",
+          )
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 },
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error(
+            "Camera API unavailable in this browser. Try Chrome/Safari over HTTPS.",
+          )
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         })
-        activeStream = stream
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop())
           return
         }
+
         const video = videoRef.current
         if (!video) throw new Error("Video element missing")
+
+        video.setAttribute("playsinline", "true")
+        video.setAttribute("webkit-playsinline", "true")
+        video.muted = true
+        video.playsInline = true
         video.srcObject = stream
-        await video.play()
+
+        try {
+          await video.play()
+        } catch {
+          // Autoplay can fail briefly; metadata/playing listeners still unblock us.
+        }
+
+        await waitForVideoDimensions(video)
         if (cancelled) return
 
         setStatus("loading")
         const vision = await FilesetResolver.forVisionTasks(WASM_URL)
         if (cancelled) return
+
         let landmarker: HandLandmarker
         try {
           landmarker = await HandLandmarker.createFromOptions(vision, {
@@ -98,15 +151,19 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
           const now = performance.now()
           if (v.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = v.currentTime
-            const result = lm.detectForVideo(v, now)
-            let left: Landmark[] | null = null
-            let right: Landmark[] | null = null
-            result.landmarks.forEach((marks, i) => {
-              const name = result.handedness[i]?.[0]?.categoryName as Handedness | undefined
-              if (name === "Left") left = marks as Landmark[]
-              if (name === "Right") right = marks as Landmark[]
-            })
-            handsRef.current = { left, right, result }
+            try {
+              const result = lm.detectForVideo(v, now)
+              let left: Landmark[] | null = null
+              let right: Landmark[] | null = null
+              result.landmarks.forEach((marks, i) => {
+                const name = result.handedness[i]?.[0]?.categoryName as Handedness | undefined
+                if (name === "Left") left = marks as Landmark[]
+                if (name === "Right") right = marks as Landmark[]
+              })
+              handsRef.current = { left, right, result }
+            } catch {
+              // Skip a bad frame rather than killing the loop
+            }
           }
           rafRef.current = requestAnimationFrame(tick)
         }
@@ -116,6 +173,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
         const message = e instanceof Error ? e.message : "Camera or model failed to start"
         setError(message)
         setStatus("error")
+        stream?.getTracks().forEach((t) => t.stop())
       }
     }
 
@@ -129,10 +187,9 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       handsRef.current = { left: null, right: null, result: null }
       lastVideoTimeRef.current = -1
       const v = videoRef.current
-      const stream = (v?.srcObject as MediaStream | null) ?? activeStream
-      stream?.getTracks().forEach((t) => t.stop())
+      const active = (v?.srcObject as MediaStream | null) ?? stream
+      active?.getTracks().forEach((t) => t.stop())
       if (v) v.srcObject = null
-      activeStream = null
     }
   }, [videoRef])
 
