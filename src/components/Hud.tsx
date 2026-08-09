@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { KEY_OPTIONS } from "../music/chords"
 import {
   FIXED_QUALITY_OPTIONS,
@@ -7,6 +8,14 @@ import {
   type ModeControl,
   type QualityControl,
 } from "../music/gestureSettings"
+import {
+  COMMUNITY_HOME,
+  ETHAN,
+  ERIC,
+  GITHUB_CONTRIBUTORS,
+  GITHUB_REPO,
+  activeSocialLinks,
+} from "../lib/siteLinks"
 import styles from "./Hud.module.css"
 
 export type InstrumentMode = "gesture" | "theremin"
@@ -18,6 +27,8 @@ type Props = {
   onKeyChange: (hz: number) => void
   gestureSettings: GestureSettings
   onGestureSettingsChange: (next: GestureSettings) => void
+  sequencerVisible: boolean
+  onSequencerVisibleChange: (visible: boolean) => void
   volume: number
   tonePct: number
   chord: string | null
@@ -25,6 +36,7 @@ type Props = {
   pitchHz: number
   octaveDown: boolean
   onHelp: () => void
+  onLearnSong: () => void
   statusText: string
   audioOn: boolean
 }
@@ -38,6 +50,8 @@ export function Hud({
   onKeyChange,
   gestureSettings,
   onGestureSettingsChange,
+  sequencerVisible,
+  onSequencerVisibleChange,
   volume,
   tonePct,
   chord,
@@ -45,11 +59,14 @@ export function Hud({
   pitchHz,
   octaveDown,
   onHelp,
+  onLearnSong,
   statusText,
   audioOn,
 }: Props) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const litCount = Math.round(volume * BARS)
   const { modeControl, fixedMode, qualityControl, fixedQuality } = gestureSettings
+  const socials = activeSocialLinks()
 
   const patch = (partial: Partial<GestureSettings>) => {
     onGestureSettingsChange({ ...gestureSettings, ...partial })
@@ -57,12 +74,20 @@ export function Hud({
 
   const qualityOptionLabel = (value: FixedQuality) => {
     const opt = FIXED_QUALITY_OPTIONS.find((o) => o.value === value)!
-    // Preview labels using fixed mode when mode is locked; otherwise show both.
     if (modeControl === "fixed") {
       return fixedMode === "major" ? opt.major : opt.minor
     }
     return `${opt.major} / ${opt.minor}`
   }
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSettingsOpen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [settingsOpen])
 
   return (
     <div className={styles.hud}>
@@ -90,91 +115,27 @@ export function Hud({
           <button type="button" className={styles.iconBtn} onClick={onHelp}>
             Help
           </button>
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={() => setSettingsOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={settingsOpen}
+          >
+            Settings
+          </button>
+          <button type="button" className={styles.iconBtn} onClick={onLearnSong}>
+            Learn a song
+          </button>
+          <a
+            className={styles.iconBtn}
+            href={COMMUNITY_HOME}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Community
+          </a>
         </div>
-        {mode === "gesture" && (
-          <>
-            <label className={styles.row}>
-              <span className="visually-hidden">Key</span>
-              <select
-                className={styles.select}
-                value={keyHz}
-                onChange={(e) => onKeyChange(Number(e.target.value))}
-                aria-label="Musical key"
-              >
-                {KEY_OPTIONS.map((k) => (
-                  <option key={k.label} value={k.hz}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className={styles.config}>
-              <div className={styles.configRow}>
-                <span className={styles.configLabel}>Left hand</span>
-                <select
-                  className={styles.selectSm}
-                  value={modeControl}
-                  onChange={(e) => patch({ modeControl: e.target.value as ModeControl })}
-                  aria-label="Left hand mode control"
-                >
-                  <option value="tilt">Scale notes + tilt major/minor</option>
-                  <option value="fixed">Scale notes only (lock mode)</option>
-                </select>
-                {modeControl === "fixed" && (
-                  <select
-                    className={styles.selectSm}
-                    value={fixedMode}
-                    onChange={(e) => patch({ fixedMode: e.target.value as FixedMode })}
-                    aria-label="Locked major or minor"
-                  >
-                    <option value="major">Major</option>
-                    <option value="minor">Minor</option>
-                  </select>
-                )}
-                <p className={styles.configHint}>
-                  {modeControl === "tilt"
-                    ? "Fingers pick the scale degree; wrist tilt flips major ↔ minor."
-                    : "Fingers pick the scale degree only. Major/minor is set above."}
-                </p>
-              </div>
-
-              <div className={styles.configRow}>
-                <span className={styles.configLabel}>Right hand</span>
-                <select
-                  className={styles.selectSm}
-                  value={qualityControl}
-                  onChange={(e) => patch({ qualityControl: e.target.value as QualityControl })}
-                  aria-label="Right hand quality control"
-                >
-                  <option value="fingers">Finger layout = chord style</option>
-                  <option value="fixed">Fixed chord style</option>
-                </select>
-                {qualityControl === "fixed" && (
-                  <select
-                    className={styles.selectSm}
-                    value={fixedQuality}
-                    onChange={(e) =>
-                      patch({ fixedQuality: Number(e.target.value) as FixedQuality })
-                    }
-                    aria-label="Fixed chord style"
-                  >
-                    {FIXED_QUALITY_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {qualityOptionLabel(o.value)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <p className={styles.configHint}>
-                  {qualityControl === "fingers"
-                    ? "1–4 fingers set triad / inversion / 7ths. Height = volume, tilt = tone."
-                    : "Chord style is locked. Right hand still controls volume, tone, and octave."}
-                </p>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       <div className={styles.topRight}>
@@ -195,13 +156,13 @@ export function Hud({
         <div className={styles.chordBlock}>
           <p className={styles.chord}>{chord ?? "--"}</p>
           <p className={styles.quality}>{quality}</p>
-          {octaveDown && (
-            <span className={styles.octaveBadge}>-8ve</span>
-          )}
+          {octaveDown && <span className={styles.octaveBadge}>-8ve</span>}
         </div>
       ) : (
         <div className={styles.thereminReadout}>
-          <p className={styles.hz}>{audioOn && pitchHz > 0 ? `${Math.round(pitchHz)} Hz` : "--"}</p>
+          <p className={styles.hz}>
+            {audioOn && pitchHz > 0 ? `${Math.round(pitchHz)} Hz` : "--"}
+          </p>
           <p className={styles.volLabel}>Vol {Math.round(volume * 100)}%</p>
         </div>
       )}
@@ -211,7 +172,7 @@ export function Hud({
       <div className={styles.cornerLinks}>
         <a
           className={styles.github}
-          href="https://github.com/Ekmand/music-synth"
+          href={GITHUB_REPO}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -230,20 +191,175 @@ export function Hud({
           GitHub
         </a>
         <div className={styles.credit}>
-          Developed by{' '}
-          <a href="https://thegreatest.dev" target="_blank" rel="noopener noreferrer">
-            Ethan
-          </a>{' '}
-          and{' '}
-          <a
-            href="https://www.instagram.com/indecisive.eric"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Eric
+          Developed by{" "}
+          <a href={ETHAN.href} target="_blank" rel="noopener noreferrer">
+            {ETHAN.name}
           </a>
         </div>
       </div>
+
+      {settingsOpen && (
+        <>
+          <button
+            type="button"
+            className={styles.settingsBackdrop}
+            aria-label="Close settings"
+            onClick={() => setSettingsOpen(false)}
+          />
+          <div className={styles.settingsSheet} role="dialog" aria-label="Settings">
+            <div className={styles.settingsHeader}>
+              <span className={styles.settingsTitle}>Settings</span>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => setSettingsOpen(false)}
+              >
+                Done
+              </button>
+            </div>
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Key</span>
+              <select
+                className={styles.selectSm}
+                value={keyHz}
+                onChange={(e) => onKeyChange(Number(e.target.value))}
+                aria-label="Musical key"
+              >
+                {KEY_OPTIONS.map((k) => (
+                  <option key={k.label} value={k.hz}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {mode === "gesture" && (
+              <>
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Left hand</span>
+                  <select
+                    className={styles.selectSm}
+                    value={modeControl}
+                    onChange={(e) => patch({ modeControl: e.target.value as ModeControl })}
+                    aria-label="Left hand mode control"
+                  >
+                    <option value="tilt">Scale notes + tilt major/minor</option>
+                    <option value="fixed">Scale notes only (lock mode)</option>
+                  </select>
+                  {modeControl === "fixed" && (
+                    <select
+                      className={styles.selectSm}
+                      value={fixedMode}
+                      onChange={(e) => patch({ fixedMode: e.target.value as FixedMode })}
+                      aria-label="Locked major or minor"
+                    >
+                      <option value="major">Major</option>
+                      <option value="minor">Minor</option>
+                    </select>
+                  )}
+                  <p className={styles.configHint}>
+                    {modeControl === "tilt"
+                      ? "Fingers pick the scale degree; wrist tilt flips major ↔ minor."
+                      : "Fingers pick the scale degree only. Major/minor is set above."}
+                  </p>
+                </div>
+
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Right hand</span>
+                  <select
+                    className={styles.selectSm}
+                    value={qualityControl}
+                    onChange={(e) =>
+                      patch({ qualityControl: e.target.value as QualityControl })
+                    }
+                    aria-label="Right hand quality control"
+                  >
+                    <option value="fingers">Finger layout = chord style</option>
+                    <option value="fixed">Fixed chord style</option>
+                  </select>
+                  {qualityControl === "fixed" && (
+                    <select
+                      className={styles.selectSm}
+                      value={fixedQuality}
+                      onChange={(e) =>
+                        patch({ fixedQuality: Number(e.target.value) as FixedQuality })
+                      }
+                      aria-label="Fixed chord style"
+                    >
+                      {FIXED_QUALITY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {qualityOptionLabel(o.value)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className={styles.configHint}>
+                    {qualityControl === "fingers"
+                      ? "1–4 fingers set triad / inversion / 7ths. Height = volume, tilt = tone."
+                      : "Chord style is locked. Right hand still controls volume, tone, and octave."}
+                  </p>
+                </div>
+              </>
+            )}
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Sequencer</span>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={sequencerVisible}
+                  onChange={(e) => onSequencerVisibleChange(e.target.checked)}
+                />
+                <span>Show loop sequencer</span>
+              </label>
+              <p className={styles.configHint}>
+                Beat grid and loop transport stay hidden until you turn this on.
+              </p>
+            </div>
+
+            <div className={styles.about}>
+              <span className={styles.configLabel}>About</span>
+              <p className={styles.aboutLine}>
+                Built by{" "}
+                <a href={ETHAN.href} target="_blank" rel="noopener noreferrer">
+                  {ETHAN.name}
+                </a>
+              </p>
+              <p className={styles.aboutLine}>
+                Inspired by{" "}
+                <a href={ERIC.href} target="_blank" rel="noopener noreferrer">
+                  {ERIC.name}
+                </a>
+              </p>
+              <p className={styles.aboutLine}>
+                <a href={GITHUB_CONTRIBUTORS} target="_blank" rel="noopener noreferrer">
+                  GitHub contributors
+                </a>
+              </p>
+
+              {socials.length > 0 && (
+                <div className={styles.socialBlock}>
+                  <span className={styles.configLabel}>Follow Gesture Synth</span>
+                  <div className={styles.socialRow}>
+                    {socials.map((link) => (
+                      <a
+                        key={link.label}
+                        className={styles.socialLink}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

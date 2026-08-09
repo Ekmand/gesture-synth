@@ -43,7 +43,7 @@ const STEPS = [
   {
     kicker: "Step 7 of 7",
     title: "Keyboard shortcuts",
-    body: "R = record/stop, Space = stop all, 1\u20134 = select track, M = mute track, S = solo track, Delete = clear track, Shift+Delete = clear all. Try Theremin mode for melodic solos over your chord loops!",
+    body: "Space = stop all / play-pause, 1\u20134 = select track, M = mute track, S = solo track, Delete = clear track, Shift+Delete = clear all. Try Theremin mode for melodic solos over your chord loops!",
     diagram: "keys" as const,
   },
 ]
@@ -118,7 +118,7 @@ export function Tutorial({ open, onClose }: Props) {
           <div className={styles.diagram}>
             <div className={styles.hand}>
               <h4>Performance</h4>
-              <p>R = record, Space = stop, 1–4 = tracks</p>
+              <p>Space = stop / play, 1–4 = tracks</p>
             </div>
             <div className={styles.hand}>
               <h4>Mixing</h4>

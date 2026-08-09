@@ -2,13 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LoopEngine, type LoopState, type TrackInfo } from "./audio/LoopEngine"
 import { SynthEngine } from "./audio/SynthEngine"
 import { BeatGrid, CountInDisplay } from "./components/BeatGrid"
-import { GlobalRecorder } from "./components/GlobalRecorder"
 import { HandCanvas } from "./components/HandCanvas"
 import { Hud, type InstrumentMode } from "./components/Hud"
 import { LoopControls } from "./components/LoopControls"
+import {
+  PracticeOverlay,
+  SongLoadBanner,
+} from "./components/practice/PracticeOverlay"
 import { ScaleGuide } from "./components/ScaleGuide"
+import { SongPicker } from "./components/SongPicker"
 import { StartGate } from "./components/StartGate"
 import { shouldShowTutorial, Tutorial } from "./components/Tutorial"
+import { arrangementToPracticeSong } from "./lib/arrangementAdapter"
+import { fetchArrangement } from "./lib/fetchArrangement"
+import { keyNameToHz } from "./lib/keyHz"
+import { compareLive, isFullMatch } from "./lib/practiceMatch"
+import type { GestureTarget, PracticeSong } from "./lib/practiceTypes"
+import {
+  loadSequencerVisible,
+  saveSequencerVisible,
+} from "./lib/sequencerPrefs"
+import { isSupabaseConfigured } from "./lib/supabase"
 import {
   chordTonesFromRoman,
   notesForQuality,
@@ -78,6 +92,12 @@ export default function App() {
   const [metronome, setMetronome] = useState(false)
   const [metronomeVolume, setMetronomeVolume] = useState(0.25)
   const [metronomeSound, setMetronomeSound] = useState("click")
+  const [practiceMetroOn, setPracticeMetroOn] = useState(false)
+  const [practiceMetroVolume, setPracticeMetroVolume] = useState(0.75)
+  /** Metronome waits until the learner sounds their first chord. */
+  const [practiceFirstNote, setPracticeFirstNote] = useState(false)
+  /** Current Learn target — audio only plays when the live gesture fully matches. */
+  const practiceTargetRef = useRef<GestureTarget | null>(null)
   const [activeTrack, setActiveTrack] = useState(0)
   const [trackInfos, setTrackInfos] = useState<TrackInfo[]>(EMPTY_TRACKS)
   const [currentStep, setCurrentStep] = useState(-1)
@@ -88,6 +108,67 @@ export default function App() {
   const liveFrameRef = useRef<LiveState>(idleLive)
   const [tutorialOpen, setTutorialOpen] = useState(false)
   const tutorialBooted = useRef(false)
+
+  const [practiceSong, setPracticeSong] = useState<PracticeSong | null>(null)
+  const [practiceOpen, setPracticeOpen] = useState(false)
+  const [songLoadError, setSongLoadError] = useState<string | null>(null)
+  const [songLoading, setSongLoading] = useState(false)
+  const [songPickerOpen, setSongPickerOpen] = useState(false)
+  const [sequencerVisible, setSequencerVisible] = useState(() => loadSequencerVisible())
+  const practiceActiveRef = useRef(false)
+  practiceActiveRef.current = practiceOpen
+  /** Community arrangement UUID from `?a=<uuid>` (same ids as community.gesturesynth.com/a/…). */
+  const deepLinkArrangementId = useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      return params.get("a") ?? params.get("song")
+    } catch {
+      return null
+    }
+  }, [])
+
+  const loadArrangementById = useCallback(async (id: string) => {
+    setSongLoading(true)
+    setSongLoadError(null)
+    try {
+      if (!isSupabaseConfigured()) {
+        throw new Error(
+          "Song links need VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY configured.",
+        )
+      }
+      const row = await fetchArrangement(id)
+      if (!row) {
+        setSongLoadError("Song not found or not public.")
+        return
+      }
+      const practice = arrangementToPracticeSong(row)
+      setPracticeSong(practice)
+      setPracticeOpen(true)
+      setPracticeMetroOn(false)
+      setPracticeFirstNote(false)
+      practiceTargetRef.current = null
+      setMode("gesture")
+      setKeyHz(keyNameToHz(practice.key))
+      setLoopBpm(practice.bpm)
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.set("a", id)
+        url.searchParams.delete("song")
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash)
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      setSongLoadError(err instanceof Error ? err.message : "Failed to load song.")
+    } finally {
+      setSongLoading(false)
+    }
+  }, [])
+
+  const handleSequencerVisibleChange = useCallback((visible: boolean) => {
+    setSequencerVisible(visible)
+    saveSequencerVisible(visible)
+  }, [])
 
   const getResult = useCallback(() => handsRef.current.result, [handsRef])
   const getWaveParams = useCallback(
@@ -116,12 +197,20 @@ export default function App() {
     setTrackInfos(infos)
   }, [])
 
+  // Deep link: /?a=<arrangement-uuid> → fetch from shared community Supabase → learn/practice mode
+  useEffect(() => {
+    if (!deepLinkArrangementId) return
+    void loadArrangementById(deepLinkArrangementId)
+  }, [deepLinkArrangementId, loadArrangementById])
+
   useEffect(() => {
     if (status === "ready" && !tutorialBooted.current) {
       tutorialBooted.current = true
+      // Skip first-run help when opening a community arrangement deep link
+      if (deepLinkArrangementId) return
       if (shouldShowTutorial()) setTutorialOpen(true)
     }
-  }, [status])
+  }, [deepLinkArrangementId, status])
 
   useEffect(() => {
     synthRef.current.setMode(mode)
@@ -151,13 +240,14 @@ export default function App() {
       const settings = settingsRef.current
 
       if (mode === "gesture") {
+        const practice = practiceActiveRef.current
         let candidate: StabilizedChord | null = null
         if (left) {
           const leftTilt = wristTilt(left, "Left")
           const rawChord = chordFromLeftHand(left, "Left")
-          const isMajorMode = settings.modeControl === "fixed"
+          const isMajorMode = !practice && settings.modeControl === "fixed"
             ? settings.fixedMode === "major" : leftTilt >= 0
-          const qualityIndex = settings.qualityControl === "fixed"
+          const qualityIndex = !practice && settings.qualityControl === "fixed"
             ? settings.fixedQuality : right ? raisedFingerCount(right) : 0
           const thumbDown = right ? isThumbExtended(right, "Right") : false
           if (rawChord) {
@@ -171,7 +261,7 @@ export default function App() {
         const stable = stabilizeRef.current(candidate, now)
         const chord = stable?.chord ?? null
         const isMajor = stable?.isMajorMode ?? settings.fixedMode === "major"
-        const qualityIndex = settings.qualityControl === "fixed"
+        const qualityIndex = !practice && settings.qualityControl === "fixed"
           ? settings.fixedQuality : (stable?.qualityIndex ?? 0)
         const thumbDown = stable?.thumbDown ?? false
         const quality = qualityLabel(qualityIndex, isMajor, thumbDown)
@@ -184,12 +274,21 @@ export default function App() {
           if (audioOn) {
             synth.updateFilterSweep(tone)
             if (chord && qualityIndex >= 1) {
-              let notes = notesForQuality(
-                chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
-              if (thumbDown) notes = notes.map((n) => n / 2)
-              playedFreqs = notes
-              synth.playNotes(notes)
-              synth.setVolume(volume)
+              const target = practice ? practiceTargetRef.current : null
+              const allowed = !practice || !target || isFullMatch(
+                compareLive(stable, target),
+              )
+              if (allowed) {
+                let notes = notesForQuality(
+                  chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
+                if (thumbDown) notes = notes.map((n) => n / 2)
+                playedFreqs = notes
+                synth.playNotes(notes)
+                synth.setVolume(volume)
+              } else {
+                playedFreqs = []
+                synth.setVolume(0)
+              }
             } else { synth.setVolume(0) }
           }
         } else if (audioOn) { synth.setVolume(0) }
@@ -292,11 +391,6 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
       switch (e.key.toLowerCase()) {
-        case "r":
-          e.preventDefault()
-          if (loopRef.current?.getState() === "idle") handleLoopRecord()
-          else handleLoopStop()
-          break
         case " ":
           e.preventDefault()
           // Spacebar: stop recording > play/pause > (tap tempo handled by LoopControls)
@@ -328,10 +422,63 @@ export default function App() {
     const ctx = synthRef.current.getContext()
     const bus = synthRef.current.getOutputBus()
     loopRef.current = new LoopEngine(ctx, bus)
-    loopRef.current.setGrid(loopBpm, loopBars)
+    const bpm = practiceSong?.bpm ?? loopBpm
+    loopRef.current.setGrid(bpm, loopBars)
     loopRef.current.setBeatsPerBar(loopBeatsPerBar)
+    if (practiceSong) setLoopBpm(practiceSong.bpm)
     setAudioOn(true)
   }
+
+  const handlePracticeTargetChange = useCallback((target: GestureTarget | null) => {
+    practiceTargetRef.current = target
+  }, [])
+
+  const handleExitPractice = useCallback(() => {
+    loopRef.current?.stopPracticeMetronome()
+    setPracticeFirstNote(false)
+    practiceTargetRef.current = null
+    setPracticeOpen(false)
+    try {
+      const url = new URL(window.location.href)
+      let changed = false
+      for (const key of ["a", "song"] as const) {
+        if (url.searchParams.has(key)) {
+          url.searchParams.delete(key)
+          changed = true
+        }
+      }
+      if (changed) {
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Arm metronome after the learner plays their first chord in Learn mode
+  useEffect(() => {
+    if (!practiceOpen || practiceFirstNote) return
+    if (live.chord && live.volume > 0.02) setPracticeFirstNote(true)
+  }, [practiceOpen, practiceFirstNote, live.chord, live.volume])
+
+  // Guided practice: metronome at song BPM once the first note has been played
+  useEffect(() => {
+    const loop = loopRef.current
+    if (!loop) return
+    if (practiceOpen && audioOn && practiceSong) {
+      loop.setBpm(practiceSong.bpm)
+      setLoopBpm(practiceSong.bpm)
+      loop.setPracticeMetronomeVolume(practiceMetroVolume)
+      if (practiceMetroOn && practiceFirstNote) loop.startPracticeMetronome()
+      else loop.stopPracticeMetronome()
+      return () => loop.stopPracticeMetronome()
+    }
+    loop.stopPracticeMetronome()
+  }, [practiceOpen, audioOn, practiceSong, practiceMetroOn, practiceFirstNote])
+
+  useEffect(() => {
+    loopRef.current?.setPracticeMetronomeVolume(practiceMetroVolume)
+  }, [practiceMetroVolume])
 
   const handleLoopBpmChange = useCallback((bpm: number) => {
     setLoopBpm(bpm)
@@ -523,22 +670,20 @@ export default function App() {
         keyHz={keyHz} onKeyChange={setKeyHz}
         gestureSettings={gestureSettings}
         onGestureSettingsChange={updateGestureSettings}
+        sequencerVisible={sequencerVisible}
+        onSequencerVisibleChange={handleSequencerVisibleChange}
         volume={live.volume} tonePct={live.tonePct}
         chord={live.chord} quality={live.quality}
         pitchHz={live.pitchHz}
         octaveDown={live.octaveDown}
         onHelp={() => setTutorialOpen(true)}
+        onLearnSong={() => setSongPickerOpen(true)}
         statusText={statusText} audioOn={audioOn}
-      />
-
-      <GlobalRecorder
-        visible={audioOn}
-        audioCtx={loopRef.current ? synthRef.current.getContext() : null}
       />
 
       <ScaleGuide
         keyHz={keyHz} chord={live.chord}
-        visible={mode === "gesture" && audioOn}
+        visible={mode === "gesture" && audioOn && !practiceOpen}
         scaleOnly={gestureSettings.modeControl === "fixed"}
       />
 
@@ -554,12 +699,12 @@ export default function App() {
         onTrackVolume={handleTrackVolume}
         onTrackMute={handleTrackMute}
         onTrackSolo={handleTrackSolo}
-        visible={audioOn}
+        visible={audioOn && sequencerVisible && !practiceOpen}
       />
 
       <CountInDisplay
         beat={countInBeat} beatsPerBar={loopBeatsPerBar}
-        visible={loopState === "countIn"}
+        visible={loopState === "countIn" && sequencerVisible}
       />
 
       <LoopControls
@@ -584,8 +729,47 @@ export default function App() {
         onClearTrack={handleClearTrack}
         onClearAll={handleClearAll} onStopAll={handleStopAll}
         onExport={handleExport}
-        didRestart={loopDidRestart} visible={audioOn}
+        didRestart={loopDidRestart}
+        visible={audioOn && sequencerVisible && !practiceOpen}
       />
+
+      <SongPicker
+        open={songPickerOpen}
+        onClose={() => setSongPickerOpen(false)}
+        onSelect={(id) => {
+          setSongPickerOpen(false)
+          void loadArrangementById(id)
+        }}
+      />
+
+      {practiceSong && (
+        <PracticeOverlay
+          song={practiceSong}
+          open={practiceOpen}
+          live={{
+            chord: live.chord,
+            qualityIndex: live.qualityIndex,
+            octaveDown: live.octaveDown,
+          }}
+          onExit={handleExitPractice}
+          metronomeOn={practiceMetroOn}
+          metronomeArmed={practiceFirstNote}
+          metronomeVolume={practiceMetroVolume}
+          onMetronomeOnChange={setPracticeMetroOn}
+          onMetronomeVolumeChange={setPracticeMetroVolume}
+          onPracticeTargetChange={handlePracticeTargetChange}
+        />
+      )}
+
+      {(songLoadError || songLoading) && (
+        <SongLoadBanner
+          message={songLoading ? "Loading song…" : songLoadError!}
+          onDismiss={() => {
+            setSongLoadError(null)
+            setSongLoading(false)
+          }}
+        />
+      )}
 
       {!audioOn && (
         <StartGate onStart={handleStart}
