@@ -45,7 +45,6 @@ type Section = {
 type StepRecord = { skipped: boolean }
 
 function buildSections(song: PracticeSong): Section[] {
-  const spb = Math.max(1, song.stepsPerBar || 4)
   const sections: Section[] = []
   song.events.forEach((ev, index) => {
     const s = Math.floor((ev.bar - 1) / SECTION_BARS)
@@ -58,9 +57,7 @@ function buildSections(song: PracticeSong): Section[] {
       }
       sections[s] = section
     }
-    const endStep = ev.stepIndex + Math.max(1, ev.beats || 1) - 1
-    const endBar = Math.floor(endStep / spb) + 1
-    section.barEnd = Math.max(section.barEnd, endBar)
+    section.barEnd = Math.max(section.barEnd, ev.bar)
     section.events.push({ ev, index })
   })
   return sections.filter(Boolean)
@@ -242,7 +239,7 @@ export function PracticeOverlay({
     setStepIdx(0)
   }, [open, phase, sectionIdx, metronomeOn, metronomeArmed])
 
-  // Drive the green chart row from the metronome beat clock (same speed as clicks)
+  // Drive the green chart row one step per metronome beat (events are 1 beat each)
   useEffect(() => {
     if (!open || phase !== "stepping" || !metronomeOn || !metronomeArmed) return
     let raf = 0
@@ -252,12 +249,9 @@ export function PracticeOverlay({
       if (!sec?.events.length) return
 
       const localBeat = Math.max(0, getBeatsRef.current() - sectionOriginBeatRef.current)
-      const totalBeats = sec.events.reduce(
-        (n, e) => n + Math.max(1, e.ev.beats || 1),
-        0,
-      )
+      const idx = Math.min(sec.events.length - 1, Math.floor(localBeat))
 
-      if (localBeat >= totalBeats) {
+      if (localBeat >= sec.events.length) {
         if (phaseRef.current === "stepping") {
           setRecords((prev) => {
             const next = prev.map((r) => r.slice())
@@ -275,17 +269,6 @@ export function PracticeOverlay({
           )
         }
         return
-      }
-
-      let acc = 0
-      let idx = sec.events.length - 1
-      for (let i = 0; i < sec.events.length; i++) {
-        const beats = Math.max(1, sec.events[i].ev.beats || 1)
-        if (localBeat < acc + beats) {
-          idx = i
-          break
-        }
-        acc += beats
       }
 
       if (idx !== tempoStepRef.current) {
@@ -600,7 +583,6 @@ export function PracticeOverlay({
                   const rec = sectionRecords[i]
                   const state =
                     i === stepIdx ? "active" : rec ? (rec.skipped ? "skipped" : "done") : "future"
-                  const beats = Math.max(1, ev.beats || 1)
                   return (
                     <div
                       className={styles.row}
@@ -610,7 +592,6 @@ export function PracticeOverlay({
                     >
                       <span>
                         {ev.bar}.{ev.beat}
-                        {beats > 1 ? `·${beats}` : ""}
                       </span>
                       <span>{ev.chordName}</span>
                       <span className={styles.deg}>{DEGREE_LABELS[ev.target.degree]}</span>

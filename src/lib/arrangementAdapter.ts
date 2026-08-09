@@ -110,21 +110,26 @@ function fromV2(row: ArrangementRow, arr: SongArrangementV2): PracticeSong {
     const world = match.mode
     const chordName = chordSymbolForDegree(keyName, world, match.degree)
     const display = match.octaveUp ? `${chordName}↑` : chordName
-    const bar = Math.floor(start / stepsPerBar) + 1
-    const beat = (start % stepsPerBar) + 1
-    events.push({
-      bar,
-      beat,
-      chordName: display,
-      stepIndex: start,
-      beats: duration,
-      target: {
-        degree: DEGREE_TO_NUM[match.degree],
-        world,
-        quality: match.quality,
-        octave: match.octaveDown ? -1 : 0,
-      },
-    })
+
+    // One practice/chart step per beat so the learn UI counts through the bar with the metro
+    for (let i = 0; i < duration; i++) {
+      const stepIndex = start + i
+      const bar = Math.floor(stepIndex / stepsPerBar) + 1
+      const beat = (stepIndex % stepsPerBar) + 1
+      events.push({
+        bar,
+        beat,
+        chordName: display,
+        stepIndex,
+        beats: 1,
+        target: {
+          degree: DEGREE_TO_NUM[match.degree],
+          world,
+          quality: match.quality,
+          octave: match.octaveDown ? -1 : 0,
+        },
+      })
+    }
   }
 
   return {
