@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DEGREE_LABELS } from "../../lib/noteNames"
 import { compareLive, isFullMatch, qualityLabel } from "../../lib/practiceMatch"
-import type { MatchReport, PracticeEvent, PracticeSong } from "../../lib/practiceTypes"
+import type {
+  GestureTarget,
+  MatchReport,
+  PracticeEvent,
+  PracticeSong,
+} from "../../lib/practiceTypes"
 import type { StabilizedChord } from "../../music/gestures"
 import { chordColorVar } from "../../music/chords"
 import { DEGREE_FINGERS, HandShape, qualityFingers } from "./HandShape"
@@ -28,8 +33,8 @@ type Props = {
   metronomeVolume: number
   onMetronomeOnChange: (on: boolean) => void
   onMetronomeVolumeChange: (volume: number) => void
-  /** Elapsed practice-metronome beats (AudioContext clock) for chart sync. */
-  getPracticeTransportBeats: () => number
+  /** Publish the active target so App can mute wrong gestures. */
+  onPracticeTargetChange: (target: GestureTarget | null) => void
 }
 
 type GuidedPhase = "stepping" | "section-done" | "done"
@@ -84,7 +89,7 @@ export function PracticeOverlay({
   metronomeVolume,
   onMetronomeOnChange,
   onMetronomeVolumeChange,
-  getPracticeTransportBeats,
+  onPracticeTargetChange,
 }: Props) {
   const metroRunning = metronomeOn && metronomeArmed
   const sections = useMemo(() => buildSections(song), [song])
@@ -98,11 +103,6 @@ export function PracticeOverlay({
   const metroWrapRef = useRef<HTMLDivElement | null>(null)
   const chartListRef = useRef<HTMLDivElement | null>(null)
   const activeRowRef = useRef<HTMLDivElement | null>(null)
-  const sectionOriginBeatRef = useRef(0)
-  const tempoStepRef = useRef(0)
-  const getBeatsRef = useRef(getPracticeTransportBeats)
-  getBeatsRef.current = getPracticeTransportBeats
-
   useEffect(() => {
     if (!metroOpen) return
     const onPointer = (e: PointerEvent) => {
@@ -145,6 +145,11 @@ export function PracticeOverlay({
     phase === "stepping" ? (section?.events[stepIdx] ?? null) : null
   const target = current?.ev.target ?? null
 
+  useEffect(() => {
+    onPracticeTargetChange(open && phase === "stepping" ? target : null)
+    return () => onPracticeTargetChange(null)
+  }, [open, phase, target, onPracticeTargetChange])
+
   const recordStep = useCallback((skipped: boolean) => {
     setRecords((prev) => {
       const next = prev.map((r) => r.slice())
@@ -169,13 +174,11 @@ export function PracticeOverlay({
 
   const scheduleAdvance = useCallback(() => {
     if (advanceTimerRef.current) return
-    // When the metronome is driving the chart, don't also advance on match timers.
-    if (metronomeOn && metronomeArmed) return
     advanceTimerRef.current = setTimeout(() => {
       advanceTimerRef.current = null
       advance()
     }, ADVANCE_MS)
-  }, [advance, metronomeOn, metronomeArmed])
+  }, [advance])
 
   const skip = useCallback(() => {
     if (phaseRef.current !== "stepping") return
@@ -229,72 +232,6 @@ export function PracticeOverlay({
   liveRef.current = live
   const targetRef = useRef(target)
   targetRef.current = target
-
-  // Snap chart transport to the metronome whenever a section starts or metro arms
-  useEffect(() => {
-    if (!open || phase !== "stepping") return
-    if (!metronomeOn || !metronomeArmed) return
-    sectionOriginBeatRef.current = getBeatsRef.current()
-    tempoStepRef.current = 0
-    setStepIdx(0)
-  }, [open, phase, sectionIdx, metronomeOn, metronomeArmed])
-
-  // Drive the green chart row one step per metronome beat (events are 1 beat each)
-  useEffect(() => {
-    if (!open || phase !== "stepping" || !metronomeOn || !metronomeArmed) return
-    let raf = 0
-    const tick = () => {
-      raf = requestAnimationFrame(tick)
-      const sec = sectionsRef.current[sectionIdxRef.current]
-      if (!sec?.events.length) return
-
-      const localBeat = Math.max(0, getBeatsRef.current() - sectionOriginBeatRef.current)
-      const idx = Math.min(sec.events.length - 1, Math.floor(localBeat))
-
-      if (localBeat >= sec.events.length) {
-        if (phaseRef.current === "stepping") {
-          setRecords((prev) => {
-            const next = prev.map((r) => r.slice())
-            const s = sectionIdxRef.current
-            if (!next[s]) next[s] = []
-            for (let i = 0; i < sec.events.length; i++) {
-              if (!next[s][i]) next[s][i] = { skipped: true }
-            }
-            return next
-          })
-          setPhase(
-            sectionIdxRef.current + 1 < sectionsRef.current.length
-              ? "section-done"
-              : "done",
-          )
-        }
-        return
-      }
-
-      if (idx !== tempoStepRef.current) {
-        const leaving = sec.events[tempoStepRef.current]?.ev.target
-        const hadMatch = leaving
-          ? isFullMatch(compareLive(toStable(liveRef.current), leaving))
-          : false
-        setRecords((prev) => {
-          const next = prev.map((r) => r.slice())
-          const s = sectionIdxRef.current
-          if (!next[s]) next[s] = []
-          if (!next[s][tempoStepRef.current]) {
-            next[s][tempoStepRef.current] = { skipped: !hadMatch }
-          }
-          return next
-        })
-        tempoStepRef.current = idx
-        stepIdxRef.current = idx
-        setStepIdx(idx)
-        setJustCompleted(false)
-        holdSinceRef.current = null
-      }
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [open, phase, metronomeOn, metronomeArmed])
 
   // Hold-to-advance match loop (rAF so hold time advances even if live UI is stable)
   useEffect(() => {
@@ -533,7 +470,11 @@ export function PracticeOverlay({
                         </button>
                         <span className={styles.metroHint}>
                           {song.bpm} BPM
-                          {metronomeOn && !metroRunning ? " · waits for first note" : ""}
+                          {!metronomeOn
+                            ? " · off"
+                            : !metroRunning
+                              ? " · waits for first note"
+                              : " · on"}
                         </span>
                       </div>
                       <div className={styles.metroRow}>

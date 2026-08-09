@@ -16,7 +16,8 @@ import { shouldShowTutorial, Tutorial } from "./components/Tutorial"
 import { arrangementToPracticeSong } from "./lib/arrangementAdapter"
 import { fetchArrangement } from "./lib/fetchArrangement"
 import { keyNameToHz } from "./lib/keyHz"
-import type { PracticeSong } from "./lib/practiceTypes"
+import { compareLive, isFullMatch } from "./lib/practiceMatch"
+import type { GestureTarget, PracticeSong } from "./lib/practiceTypes"
 import {
   loadSequencerVisible,
   saveSequencerVisible,
@@ -91,10 +92,12 @@ export default function App() {
   const [metronome, setMetronome] = useState(false)
   const [metronomeVolume, setMetronomeVolume] = useState(0.25)
   const [metronomeSound, setMetronomeSound] = useState("click")
-  const [practiceMetroOn, setPracticeMetroOn] = useState(true)
+  const [practiceMetroOn, setPracticeMetroOn] = useState(false)
   const [practiceMetroVolume, setPracticeMetroVolume] = useState(0.75)
   /** Metronome waits until the learner sounds their first chord. */
   const [practiceFirstNote, setPracticeFirstNote] = useState(false)
+  /** Current Learn target — audio only plays when the live gesture fully matches. */
+  const practiceTargetRef = useRef<GestureTarget | null>(null)
   const [activeTrack, setActiveTrack] = useState(0)
   const [trackInfos, setTrackInfos] = useState<TrackInfo[]>(EMPTY_TRACKS)
   const [currentStep, setCurrentStep] = useState(-1)
@@ -141,8 +144,9 @@ export default function App() {
       const practice = arrangementToPracticeSong(row)
       setPracticeSong(practice)
       setPracticeOpen(true)
-      setPracticeMetroOn(true)
+      setPracticeMetroOn(false)
       setPracticeFirstNote(false)
+      practiceTargetRef.current = null
       setMode("gesture")
       setKeyHz(keyNameToHz(practice.key))
       setLoopBpm(practice.bpm)
@@ -270,12 +274,21 @@ export default function App() {
           if (audioOn) {
             synth.updateFilterSweep(tone)
             if (chord && qualityIndex >= 1) {
-              let notes = notesForQuality(
-                chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
-              if (thumbDown) notes = notes.map((n) => n / 2)
-              playedFreqs = notes
-              synth.playNotes(notes)
-              synth.setVolume(volume)
+              const target = practice ? practiceTargetRef.current : null
+              const allowed = !practice || !target || isFullMatch(
+                compareLive(stable, target),
+              )
+              if (allowed) {
+                let notes = notesForQuality(
+                  chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
+                if (thumbDown) notes = notes.map((n) => n / 2)
+                playedFreqs = notes
+                synth.playNotes(notes)
+                synth.setVolume(volume)
+              } else {
+                playedFreqs = []
+                synth.setVolume(0)
+              }
             } else { synth.setVolume(0) }
           }
         } else if (audioOn) { synth.setVolume(0) }
@@ -416,9 +429,14 @@ export default function App() {
     setAudioOn(true)
   }
 
+  const handlePracticeTargetChange = useCallback((target: GestureTarget | null) => {
+    practiceTargetRef.current = target
+  }, [])
+
   const handleExitPractice = useCallback(() => {
     loopRef.current?.stopPracticeMetronome()
     setPracticeFirstNote(false)
+    practiceTargetRef.current = null
     setPracticeOpen(false)
     try {
       const url = new URL(window.location.href)
@@ -739,9 +757,7 @@ export default function App() {
           metronomeVolume={practiceMetroVolume}
           onMetronomeOnChange={setPracticeMetroOn}
           onMetronomeVolumeChange={setPracticeMetroVolume}
-          getPracticeTransportBeats={() =>
-            loopRef.current?.getPracticeTransportBeats() ?? 0
-          }
+          onPracticeTargetChange={handlePracticeTargetChange}
         />
       )}
 
