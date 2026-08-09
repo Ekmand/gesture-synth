@@ -76,6 +76,12 @@
   color: var(--text);
 }
 
+a.iconBtn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
 .select {
   background: var(--bg-panel);
   border: 1px solid var(--stroke);

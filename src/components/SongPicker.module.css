@@ -62,6 +62,39 @@
   color: var(--text);
 }
 
+.createLink {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.65rem 0.85rem 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(61, 255, 224, 0.35);
+  border-radius: 12px;
+  background: var(--mint-dim);
+  color: var(--text);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+
+.createLink:hover {
+  border-color: rgba(61, 255, 224, 0.55);
+  background: rgba(61, 255, 224, 0.26);
+}
+
+.createTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--mint);
+}
+
+.createMeta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

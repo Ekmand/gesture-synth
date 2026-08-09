@@ -3,6 +3,7 @@ import {
   listArrangements,
   type ArrangementListItem,
 } from "../lib/fetchArrangement"
+import { COMMUNITY_BUILDER } from "../lib/siteLinks"
 import { isSupabaseConfigured } from "../lib/supabase"
 import styles from "./SongPicker.module.css"
 
@@ -110,6 +111,18 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
             Close
           </button>
         </header>
+
+        <a
+          className={styles.createLink}
+          href={COMMUNITY_BUILDER}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span className={styles.createTitle}>Create or share a song</span>
+          <span className={styles.createMeta}>
+            Open the community builder to arrange and publish your own
+          </span>
+        </a>
 
         {loading && <p className={styles.status}>Loading songs…</p>}
         {!loading && error && (

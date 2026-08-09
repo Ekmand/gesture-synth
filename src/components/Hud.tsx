@@ -9,6 +9,7 @@ import {
   type QualityControl,
 } from "../music/gestureSettings"
 import {
+  COMMUNITY_HOME,
   ETHAN,
   ERIC,
   GITHUB_CONTRIBUTORS,
@@ -126,6 +127,14 @@ export function Hud({
           <button type="button" className={styles.iconBtn} onClick={onLearnSong}>
             Learn a song
           </button>
+          <a
+            className={styles.iconBtn}
+            href={COMMUNITY_HOME}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Community
+          </a>
         </div>
       </div>
 
