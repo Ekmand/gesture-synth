@@ -287,6 +287,11 @@ export class LoopEngine {
   private metronome = false
   private metronomeVolume = 0.25
   private metronomeSound: "click" | "wood" | "beep" | "hihat" = "click"
+  /** Free-running click track for guided practice (not tied to loop record/play). */
+  private practiceMetro = false
+  private practiceMetroVolume = 0.75
+  private practiceMetroNextBeat = 0
+  private practiceMetroBeatIndex = 0
   private globalState: LoopState = "idle"
   private countInStart = 0
   private countInDuration = 0
@@ -320,6 +325,48 @@ export class LoopEngine {
   getMetronomeVolume() { return this.metronomeVolume }
   setMetronomeSound(s: "click" | "wood" | "beep" | "hihat") { this.metronomeSound = s }
   getMetronomeSound() { return this.metronomeSound }
+
+  /** Start a continuous metronome at the current grid BPM (used by Learn / guided practice). */
+  startPracticeMetronome() {
+    void this.ctx.resume()
+    this.practiceMetro = true
+    this.practiceMetroNextBeat = this.ctx.currentTime + 0.05
+    this.practiceMetroBeatIndex = 0
+    this.schedulePracticeMetronomeAhead()
+  }
+
+  stopPracticeMetronome() {
+    this.practiceMetro = false
+  }
+
+  getPracticeMetronome() {
+    return this.practiceMetro
+  }
+
+  setPracticeMetronomeVolume(v: number) {
+    this.practiceMetroVolume = Math.max(0, Math.min(1, v))
+  }
+
+  getPracticeMetronomeVolume() {
+    return this.practiceMetroVolume
+  }
+
+  private schedulePracticeMetronomeAhead() {
+    if (!this.practiceMetro || this.practiceMetroVolume <= 0) return
+    const beatSec = this.beatDurationSec()
+    if (beatSec <= 0) return
+    const horizon = this.ctx.currentTime + 1.5
+    // If BPM jumped and next beat is far in the past, resync
+    if (this.practiceMetroNextBeat < this.ctx.currentTime - beatSec) {
+      this.practiceMetroNextBeat = this.ctx.currentTime
+    }
+    while (this.practiceMetroNextBeat < horizon) {
+      const accent = this.practiceMetroBeatIndex % this.beatsPerBar === 0
+      this.playClick(this.practiceMetroNextBeat, accent)
+      this.practiceMetroNextBeat += beatSec
+      this.practiceMetroBeatIndex++
+    }
+  }
 
   getTotalSteps() { return this.gridBars * this.beatsPerBar * SUBS_PER_BEAT }
   private gridDurationMs() { return this.gridBars * this.beatsPerBar * (60 / this.gridBpm) * 1000 }
@@ -397,7 +444,9 @@ export class LoopEngine {
   getCountInBeat() { return this.countInBeat }
 
   private playClick(time: number, accent: boolean) {
-    const vol = this.metronomeVolume * (accent ? 1.0 : 0.7)
+    const base = this.practiceMetro ? this.practiceMetroVolume : this.metronomeVolume
+    if (base <= 0) return
+    const vol = base * (accent ? 1.0 : 0.7)
     const g = this.ctx.createGain()
     g.connect(this.bus)
 
@@ -510,6 +559,8 @@ export class LoopEngine {
 
   // --- Playback display (UI only — audio is handled by buffer sources) ---
   tick(_now: number) {
+    if (this.practiceMetro) this.schedulePracticeMetronomeAhead()
+
     const anyPlaying = this.tracks.some((t) => t.playing)
     if (!anyPlaying) return
     if (this.loopDuration === 0) this.loopDuration = this.gridDurationMs()

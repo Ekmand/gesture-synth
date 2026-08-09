@@ -1,7 +1,8 @@
 .hud {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  /* Above ScaleGuide / BeatGrid / LoopControls stacking contexts so Settings isn't buried */
+  z-index: 15;
   pointer-events: none;
 }
 
@@ -85,21 +86,138 @@
   font-weight: 500;
 }
 
-.config {
+.settingsBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(6, 10, 14, 0.55);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.settingsSheet {
+  position: absolute;
+  z-index: 41;
+  top: max(0.75rem, env(safe-area-inset-top));
+  left: max(0.75rem, env(safe-area-inset-left));
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: min(78vh, 40rem);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.65rem 0.75rem;
-  background: var(--bg-panel);
+  gap: 0.85rem;
+  padding: 0.85rem 0.9rem 1rem;
+  background: var(--bg-panel-solid);
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
-  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+  animation: sheetIn 0.25s var(--ease-out);
+}
+
+.settingsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.settingsTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
 }
 
 .configRow {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.toggleRow input {
+  accent-color: var(--mint);
+  width: 1rem;
+  height: 1rem;
+}
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--stroke);
+}
+
+.aboutLine {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.aboutLine a {
+  color: var(--mint);
+  text-decoration: none;
+}
+
+.aboutLine a:hover {
+  text-decoration: underline;
+}
+
+.socialBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.socialRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.socialLink {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  transition: color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+
+.socialLink:hover {
+  color: var(--mint);
+  border-color: rgba(61, 255, 224, 0.35);
+}
+
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .configLabel {
@@ -296,4 +414,30 @@
 
 .credit a:hover {
   color: var(--mint);
+}
+
+@media (max-width: 720px) {
+  .topLeft {
+    max-width: calc(100% - 5rem);
+  }
+
+  .modeBtn,
+  .iconBtn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .settingsSheet {
+    top: auto;
+    bottom: max(0.65rem, env(safe-area-inset-bottom));
+    left: max(0.65rem, env(safe-area-inset-left));
+    right: max(0.65rem, env(safe-area-inset-right));
+    width: auto;
+    max-height: min(70dvh, 32rem);
+  }
+
+  .status {
+    max-width: 55%;
+    font-size: 0.7rem;
+  }
 }
