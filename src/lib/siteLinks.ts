@@ -22,7 +22,7 @@ export const COMMUNITY_BUILDER = `${COMMUNITY_HOME}/builder`
  */
 export const SOCIAL_LINKS = [
   { label: "Instagram", href: "https://www.instagram.com/gesturesynth/" },
-  { label: "Discord", href: "https://discord.gg/gesturesynth" },
+  { label: "Discord", href: "https://discord.gg/ensg4kmUve" },
   { label: "TikTok", href: "https://www.tiktok.com/@gesturesynth" },
   { label: "YouTube", href: "https://www.youtube.com/@gesturesynth" },
 ] as const

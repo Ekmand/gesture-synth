@@ -207,7 +207,12 @@ a.iconBtn {
   border-radius: 999px;
   padding: 0.28rem 0.6rem;
   background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
   transition: color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+
+.bottomLeft .socialLink {
+  background: var(--bg-panel);
 }
 
 .socialLink:hover {
@@ -357,10 +362,19 @@ a.iconBtn {
   font-size: 0.9rem;
 }
 
-.status {
+.bottomLeft {
   position: absolute;
   bottom: 1rem;
   left: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  z-index: 1;
+}
+
+.status {
   font-size: 0.8rem;
   color: var(--text-muted);
   background: var(--bg-panel);
@@ -442,8 +456,11 @@ a.iconBtn {
     max-height: min(70dvh, 32rem);
   }
 
+  .bottomLeft {
+    max-width: min(55%, calc(100vw - 2rem));
+  }
+
   .status {
-    max-width: 55%;
     font-size: 0.7rem;
   }
 }

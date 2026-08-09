@@ -167,7 +167,24 @@ export function Hud({
         </div>
       )}
 
-      <div className={styles.status}>{statusText}</div>
+      <div className={styles.bottomLeft}>
+        {socials.length > 0 && (
+          <div className={styles.socialRow} aria-label="Follow Gesture Synth">
+            {socials.map((link) => (
+              <a
+                key={link.label}
+                className={styles.socialLink}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        )}
+        <div className={styles.status}>{statusText}</div>
+      </div>
 
       <div className={styles.cornerLinks}>
         <a
