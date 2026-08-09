@@ -28,6 +28,8 @@ type Props = {
   metronomeVolume: number
   onMetronomeOnChange: (on: boolean) => void
   onMetronomeVolumeChange: (volume: number) => void
+  /** Elapsed practice-metronome beats (AudioContext clock) for chart sync. */
+  getPracticeTransportBeats: () => number
 }
 
 type GuidedPhase = "stepping" | "section-done" | "done"
@@ -43,6 +45,7 @@ type Section = {
 type StepRecord = { skipped: boolean }
 
 function buildSections(song: PracticeSong): Section[] {
+  const spb = Math.max(1, song.stepsPerBar || 4)
   const sections: Section[] = []
   song.events.forEach((ev, index) => {
     const s = Math.floor((ev.bar - 1) / SECTION_BARS)
@@ -55,7 +58,9 @@ function buildSections(song: PracticeSong): Section[] {
       }
       sections[s] = section
     }
-    section.barEnd = Math.max(section.barEnd, ev.bar)
+    const endStep = ev.stepIndex + Math.max(1, ev.beats || 1) - 1
+    const endBar = Math.floor(endStep / spb) + 1
+    section.barEnd = Math.max(section.barEnd, endBar)
     section.events.push({ ev, index })
   })
   return sections.filter(Boolean)
@@ -82,6 +87,7 @@ export function PracticeOverlay({
   metronomeVolume,
   onMetronomeOnChange,
   onMetronomeVolumeChange,
+  getPracticeTransportBeats,
 }: Props) {
   const metroRunning = metronomeOn && metronomeArmed
   const sections = useMemo(() => buildSections(song), [song])
@@ -95,6 +101,10 @@ export function PracticeOverlay({
   const metroWrapRef = useRef<HTMLDivElement | null>(null)
   const chartListRef = useRef<HTMLDivElement | null>(null)
   const activeRowRef = useRef<HTMLDivElement | null>(null)
+  const sectionOriginBeatRef = useRef(0)
+  const tempoStepRef = useRef(0)
+  const getBeatsRef = useRef(getPracticeTransportBeats)
+  getBeatsRef.current = getPracticeTransportBeats
 
   useEffect(() => {
     if (!metroOpen) return
@@ -162,11 +172,13 @@ export function PracticeOverlay({
 
   const scheduleAdvance = useCallback(() => {
     if (advanceTimerRef.current) return
+    // When the metronome is driving the chart, don't also advance on match timers.
+    if (metronomeOn && metronomeArmed) return
     advanceTimerRef.current = setTimeout(() => {
       advanceTimerRef.current = null
       advance()
     }, ADVANCE_MS)
-  }, [advance])
+  }, [advance, metronomeOn, metronomeArmed])
 
   const skip = useCallback(() => {
     if (phaseRef.current !== "stepping") return
@@ -220,6 +232,86 @@ export function PracticeOverlay({
   liveRef.current = live
   const targetRef = useRef(target)
   targetRef.current = target
+
+  // Snap chart transport to the metronome whenever a section starts or metro arms
+  useEffect(() => {
+    if (!open || phase !== "stepping") return
+    if (!metronomeOn || !metronomeArmed) return
+    sectionOriginBeatRef.current = getBeatsRef.current()
+    tempoStepRef.current = 0
+    setStepIdx(0)
+  }, [open, phase, sectionIdx, metronomeOn, metronomeArmed])
+
+  // Drive the green chart row from the metronome beat clock (same speed as clicks)
+  useEffect(() => {
+    if (!open || phase !== "stepping" || !metronomeOn || !metronomeArmed) return
+    let raf = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const sec = sectionsRef.current[sectionIdxRef.current]
+      if (!sec?.events.length) return
+
+      const localBeat = Math.max(0, getBeatsRef.current() - sectionOriginBeatRef.current)
+      const totalBeats = sec.events.reduce(
+        (n, e) => n + Math.max(1, e.ev.beats || 1),
+        0,
+      )
+
+      if (localBeat >= totalBeats) {
+        if (phaseRef.current === "stepping") {
+          setRecords((prev) => {
+            const next = prev.map((r) => r.slice())
+            const s = sectionIdxRef.current
+            if (!next[s]) next[s] = []
+            for (let i = 0; i < sec.events.length; i++) {
+              if (!next[s][i]) next[s][i] = { skipped: true }
+            }
+            return next
+          })
+          setPhase(
+            sectionIdxRef.current + 1 < sectionsRef.current.length
+              ? "section-done"
+              : "done",
+          )
+        }
+        return
+      }
+
+      let acc = 0
+      let idx = sec.events.length - 1
+      for (let i = 0; i < sec.events.length; i++) {
+        const beats = Math.max(1, sec.events[i].ev.beats || 1)
+        if (localBeat < acc + beats) {
+          idx = i
+          break
+        }
+        acc += beats
+      }
+
+      if (idx !== tempoStepRef.current) {
+        const leaving = sec.events[tempoStepRef.current]?.ev.target
+        const hadMatch = leaving
+          ? isFullMatch(compareLive(toStable(liveRef.current), leaving))
+          : false
+        setRecords((prev) => {
+          const next = prev.map((r) => r.slice())
+          const s = sectionIdxRef.current
+          if (!next[s]) next[s] = []
+          if (!next[s][tempoStepRef.current]) {
+            next[s][tempoStepRef.current] = { skipped: !hadMatch }
+          }
+          return next
+        })
+        tempoStepRef.current = idx
+        stepIdxRef.current = idx
+        setStepIdx(idx)
+        setJustCompleted(false)
+        holdSinceRef.current = null
+      }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [open, phase, metronomeOn, metronomeArmed])
 
   // Hold-to-advance match loop (rAF so hold time advances even if live UI is stable)
   useEffect(() => {
@@ -508,6 +600,7 @@ export function PracticeOverlay({
                   const rec = sectionRecords[i]
                   const state =
                     i === stepIdx ? "active" : rec ? (rec.skipped ? "skipped" : "done") : "future"
+                  const beats = Math.max(1, ev.beats || 1)
                   return (
                     <div
                       className={styles.row}
@@ -517,6 +610,7 @@ export function PracticeOverlay({
                     >
                       <span>
                         {ev.bar}.{ev.beat}
+                        {beats > 1 ? `·${beats}` : ""}
                       </span>
                       <span>{ev.chordName}</span>
                       <span className={styles.deg}>{DEGREE_LABELS[ev.target.degree]}</span>

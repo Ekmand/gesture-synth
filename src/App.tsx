@@ -739,6 +739,9 @@ export default function App() {
           metronomeVolume={practiceMetroVolume}
           onMetronomeOnChange={setPracticeMetroOn}
           onMetronomeVolumeChange={setPracticeMetroVolume}
+          getPracticeTransportBeats={() =>
+            loopRef.current?.getPracticeTransportBeats() ?? 0
+          }
         />
       )}
 

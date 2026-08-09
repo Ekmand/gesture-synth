@@ -18,6 +18,8 @@ export type PracticeEvent = {
   target: GestureTarget
   /** Original step index in the flat arrangement (for chart) */
   stepIndex: number
+  /** How many beats this chord lasts (arrangement step duration). */
+  beats: number
 }
 
 export type PracticeSong = {

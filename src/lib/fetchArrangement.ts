@@ -5,6 +5,10 @@ import type {
   SongArrangementV1,
   SongArrangementV2,
 } from "./arrangementTypes"
+import {
+  applyArrangementListOverrides,
+  applyArrangementOverride,
+} from "./songOverrides"
 import { getSupabase } from "./supabase"
 
 function isMode(value: unknown): value is Mode {
@@ -108,7 +112,7 @@ export async function listArrangements(limit = 96): Promise<ArrangementListItem[
 
   if (error) throw new Error(error.message)
 
-  return (data ?? []).map((row) => {
+  const items = (data ?? []).map((row) => {
     const profilesRaw = row.profiles as
       | { username: string | null; display_name: string | null }
       | { username: string | null; display_name: string | null }[]
@@ -125,6 +129,7 @@ export async function listArrangements(limit = 96): Promise<ArrangementListItem[
       profiles,
     }
   })
+  return applyArrangementListOverrides(items)
 }
 
 export async function fetchArrangement(id: string): Promise<ArrangementRow | null> {
@@ -153,31 +158,37 @@ export async function fetchArrangement(id: string): Promise<ArrangementRow | nul
   if (error) throw new Error(error.message)
   if (!data) return null
 
-  const mode = isMode(data.mode) ? data.mode : "major"
-  const arrangement = normalizeArrangement(data.arrangement, {
-    keyName: (data.key_name as string) || "C",
+  const profilesRaw = data.profiles as
+    | { username: string | null; display_name: string | null }
+    | { username: string | null; display_name: string | null }[]
+    | null
+  const profiles = Array.isArray(profilesRaw) ? (profilesRaw[0] ?? null) : profilesRaw
+
+  const patched = applyArrangementOverride({
+    id: data.id as string,
+    title: data.title as string,
+    description: (data.description as string) ?? "",
+    key_name: data.key_name as string,
+    mode: isMode(data.mode) ? data.mode : "major",
+    bpm: data.bpm as number,
+    arrangement: data.arrangement as ArrangementRow["arrangement"],
+    profiles,
+  })
+
+  const mode = isMode(patched.mode) ? patched.mode : "major"
+  const arrangement = normalizeArrangement(patched.arrangement, {
+    keyName: patched.key_name || "C",
     mode,
-    bpm: (data.bpm as number) || 100,
+    bpm: patched.bpm || 100,
   })
   if (!arrangement) {
     throw new Error("Arrangement payload is not a valid SongArrangement (v1 or v2)")
   }
 
-  const profilesRaw = data.profiles as
-    | { username: string | null; display_name: string | null }
-    | { username: string | null; display_name: string | null }[]
-    | null
-
-  const profiles = Array.isArray(profilesRaw) ? (profilesRaw[0] ?? null) : profilesRaw
-
   return {
-    id: data.id as string,
-    title: data.title as string,
-    description: (data.description as string) ?? "",
-    key_name: data.key_name as string,
+    ...patched,
     mode,
-    bpm: data.bpm as number,
+    bpm: patched.bpm || 100,
     arrangement,
-    profiles,
   }
 }

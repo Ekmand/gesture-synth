@@ -292,6 +292,8 @@ export class LoopEngine {
   private practiceMetroVolume = 0.75
   private practiceMetroNextBeat = 0
   private practiceMetroBeatIndex = 0
+  /** AudioContext time of beat 0 for practice transport sync. */
+  private practiceMetroOrigin = 0
   private globalState: LoopState = "idle"
   private countInStart = 0
   private countInDuration = 0
@@ -330,7 +332,8 @@ export class LoopEngine {
   startPracticeMetronome() {
     void this.ctx.resume()
     this.practiceMetro = true
-    this.practiceMetroNextBeat = this.ctx.currentTime + 0.05
+    this.practiceMetroOrigin = this.ctx.currentTime + 0.05
+    this.practiceMetroNextBeat = this.practiceMetroOrigin
     this.practiceMetroBeatIndex = 0
     this.schedulePracticeMetronomeAhead()
   }
@@ -341,6 +344,14 @@ export class LoopEngine {
 
   getPracticeMetronome() {
     return this.practiceMetro
+  }
+
+  /** Elapsed beats since practice metronome beat 0 (for chart playhead sync). */
+  getPracticeTransportBeats() {
+    if (!this.practiceMetro) return 0
+    const beatSec = this.beatDurationSec()
+    if (beatSec <= 0) return 0
+    return Math.max(0, (this.ctx.currentTime - this.practiceMetroOrigin) / beatSec)
   }
 
   setPracticeMetronomeVolume(v: number) {
