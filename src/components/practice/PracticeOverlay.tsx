@@ -381,13 +381,14 @@ export function PracticeOverlay({
                     <HandShape
                       side="left"
                       fingers={DEGREE_FINGERS[target.degree] ?? DEGREE_FINGERS[1]}
-                      tiltDeg={target.world === "minor" ? 18 : -18}
+                      face={target.world === "minor" ? "back" : "palm"}
                       color={degreeColor}
                     />
                   </div>
                   <p className={styles.caption}>
-                    <strong>Left</strong> · {DEGREE_LABELS[target.degree]} · tilt{" "}
-                    {target.world === "minor" ? "right" : "left"} ({target.world})
+                    <strong>Left</strong> · {DEGREE_LABELS[target.degree]} ·{" "}
+                    {target.world === "minor" ? "back of hand" : "palm"} to camera (
+                    {target.world})
                   </p>
                 </div>
                 <div className={styles.hand}>

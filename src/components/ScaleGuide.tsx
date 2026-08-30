@@ -24,7 +24,7 @@ export function ScaleGuide({ keyHz, chord, visible, scaleOnly = false }: Props) 
         Left hand · {keyLabel}
         {scaleOnly
           ? " — fingers choose the note (mode locked in settings)"
-          : " — fingers choose the note; tilt for major/minor"}
+          : " — fingers choose the note; palm = major, back of hand = minor"}
       </p>
       <div className={styles.row}>
         {degrees.map((d, i) => {
