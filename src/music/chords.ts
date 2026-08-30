@@ -73,72 +73,142 @@ export function chordTonesFromRoman(
   }
 }
 
+/**
+ * Chord vocabulary.
+ *
+ * A quality is a list of semitone offsets from the chord root, so new
+ * voicings are a one-line addition rather than another field on ChordTones.
+ * The third moves with the mode, which is why intervals are a function of it
+ * instead of a constant array.
+ */
+export type ChordQuality = {
+  id: string
+  major: string
+  minor: string
+  intervals: (isMajor: boolean) => number[]
+}
+
+/** The mode's third, in semitones. */
+const third = (isMajor: boolean) => (isMajor ? 4 : 3)
+
+export const QUALITIES = {
+  triad: {
+    id: "triad", major: "Major", minor: "Minor",
+    intervals: (m) => [0, 7, 12, 12 + third(m)],
+  },
+  inv1: {
+    id: "inv1", major: "Major 1st Inv", minor: "Minor 1st Inv",
+    intervals: (m) => [third(m), 7, 12, 12 + third(m)],
+  },
+  seventh: {
+    id: "seventh", major: "Major 7th", minor: "Minor 7th",
+    intervals: (m) => [0, third(m), 7, m ? 11 : 10],
+  },
+  dom7: {
+    id: "dom7", major: "Dominant 7th", minor: "Diminished 7th",
+    intervals: (m) => (m ? [0, 4, 7, 10] : [0, 3, 6, 9]),
+  },
+  sus2: {
+    id: "sus2", major: "Sus2", minor: "Sus2",
+    intervals: () => [0, 2, 7, 12],
+  },
+  sus4: {
+    id: "sus4", major: "Sus4", minor: "Sus4",
+    intervals: () => [0, 5, 7, 12],
+  },
+  add9: {
+    id: "add9", major: "Add9", minor: "Minor Add9",
+    intervals: (m) => [0, third(m), 7, 14],
+  },
+  sixth: {
+    id: "sixth", major: "Major 6th", minor: "Minor 6th",
+    intervals: (m) => [0, third(m), 7, 9],
+  },
+  ninth: {
+    id: "ninth", major: "Dominant 9th", minor: "Minor 9th",
+    intervals: (m) => [0, third(m), 7, 10, 14],
+  },
+  maj9: {
+    id: "maj9", major: "Major 9th", minor: "Minor 9th",
+    intervals: (m) => [0, third(m), 7, m ? 11 : 10, 14],
+  },
+  power: {
+    id: "power", major: "Power 5th", minor: "Power 5th",
+    intervals: () => [0, 7, 12, 19],
+  },
+  eleventh: {
+    id: "eleventh", major: "11th", minor: "11th",
+    intervals: () => [0, 7, 10, 14, 17],
+  },
+} satisfies Record<string, ChordQuality>
+
+export type PaletteId = "classic" | "suspended" | "extended" | "open"
+
+/** Each palette maps the right hand's 1–4 raised fingers onto four qualities. */
+export const CHORD_PALETTES: {
+  id: PaletteId
+  label: string
+  hint: string
+  slots: [ChordQuality, ChordQuality, ChordQuality, ChordQuality]
+}[] = [
+  {
+    id: "classic",
+    label: "Classic",
+    hint: "Triad, inversion, 7ths — the original set.",
+    slots: [QUALITIES.triad, QUALITIES.inv1, QUALITIES.seventh, QUALITIES.dom7],
+  },
+  {
+    id: "suspended",
+    label: "Suspended",
+    hint: "Open, unresolved voicings that sit well under a melody.",
+    slots: [QUALITIES.sus2, QUALITIES.sus4, QUALITIES.triad, QUALITIES.add9],
+  },
+  {
+    id: "extended",
+    label: "Extended",
+    hint: "Jazz colour — 7ths, 9ths and 6ths.",
+    slots: [QUALITIES.seventh, QUALITIES.ninth, QUALITIES.add9, QUALITIES.sixth],
+  },
+  {
+    id: "open",
+    label: "Open / rock",
+    hint: "Power chords and stacked suspensions.",
+    slots: [QUALITIES.power, QUALITIES.triad, QUALITIES.sus4, QUALITIES.eleventh],
+  },
+]
+
+export const DEFAULT_PALETTE: PaletteId = "classic"
+
+export function paletteById(id: PaletteId | undefined): (typeof CHORD_PALETTES)[number] {
+  return CHORD_PALETTES.find((p) => p.id === id) ?? CHORD_PALETTES[0]
+}
+
+/** Quality for a raised-finger count of 1–4; anything else falls back to slot 1. */
+export function qualityForSlot(paletteId: PaletteId | undefined, slot: number): ChordQuality {
+  const palette = paletteById(paletteId)
+  return palette.slots[Math.min(4, Math.max(1, slot)) - 1]
+}
+
 export function notesForQuality(
   tones: ChordTones | null,
   qualityIndex: number,
   isMajorMode: boolean,
+  paletteId: PaletteId = DEFAULT_PALETTE,
 ): number[] {
-  if (!tones) return []
-  const {
-    root,
-    third,
-    fifth,
-    octaveRoot,
-    octaveThird,
-    maj7Tone,
-    dom7Tone,
-    dim7Tone,
-    dim5Tone,
-  } = tones
-
-  if (isMajorMode) {
-    switch (qualityIndex) {
-      case 1:
-        return [root, fifth, octaveRoot, octaveThird]
-      case 2:
-        return [third, fifth, octaveRoot, octaveThird]
-      case 3:
-        return [root, third, fifth, maj7Tone]
-      case 4:
-        return [root, third, fifth, dom7Tone]
-      default:
-        return [root, fifth, octaveRoot, octaveThird]
-    }
-  }
-
-  switch (qualityIndex) {
-    case 1:
-      return [root, fifth, octaveRoot, octaveThird]
-    case 2:
-      return [third, fifth, octaveRoot, octaveThird]
-    case 3:
-      return [root, third, fifth, dom7Tone]
-    case 4:
-      return [root, third, dim5Tone, dim7Tone]
-    default:
-      return [root, fifth, octaveRoot, octaveThird]
-  }
+  if (!tones || qualityIndex < 1) return []
+  const quality = qualityForSlot(paletteId, qualityIndex)
+  return quality.intervals(isMajorMode).map((semis) => tones.root * 2 ** (semis / 12))
 }
 
 export function qualityLabel(
   qualityIndex: number,
   isMajorMode: boolean,
   octaveDown: boolean,
+  paletteId: PaletteId = DEFAULT_PALETTE,
 ): string {
-  const major: Record<number, string> = {
-    1: "Major",
-    2: "Major 1st Inv",
-    3: "Major 7th",
-    4: "Dominant 7th",
-  }
-  const minor: Record<number, string> = {
-    1: "Minor",
-    2: "Minor 1st Inv",
-    3: "Minor 7th",
-    4: "Diminished 7th",
-  }
-  const base = (isMajorMode ? major : minor)[qualityIndex]
-  if (!base) return "--"
+  if (qualityIndex < 1 || qualityIndex > 4) return "--"
+  const quality = qualityForSlot(paletteId, qualityIndex)
+  const base = isMajorMode ? quality.major : quality.minor
   return octaveDown ? `${base} (-8ve)` : base
 }
 

@@ -27,6 +27,7 @@ import {
   chordTonesFromRoman,
   notesForQuality,
   qualityLabel,
+  DEFAULT_PALETTE,
 } from "./music/chords"
 import {
   loadGestureSettings,
@@ -37,6 +38,8 @@ import {
 import {
   chordFromLeftHand,
   createChordStabilizer,
+  createPalmModeDetector,
+  palmFacing,
   pitchFromHandY,
   raisedFingerCount,
   isThumbExtended,
@@ -56,10 +59,13 @@ type LiveState = {
   qualityIndex: number
   pitchHz: number
   octaveDown: boolean
+  /** Which face of the left hand the camera currently sees. */
+  palmSide: "palm" | "back" | null
 }
 
 const idleLive: LiveState = {
-  volume: 0, tone: 0, tonePct: 0, chord: null, quality: "--", qualityIndex: 0, pitchHz: 0, octaveDown: false,
+  volume: 0, tone: 0, tonePct: 0, chord: null, quality: "--", qualityIndex: 0, pitchHz: 0,
+  octaveDown: false, palmSide: null,
 }
 
 const EMPTY_TRACKS: TrackInfo[] = Array.from({ length: 4 }, () => ({
@@ -70,6 +76,7 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const synthRef = useRef(new SynthEngine())
   const stabilizeRef = useRef(createChordStabilizer())
+  const palmModeRef = useRef(createPalmModeDetector())
   const { status, error, handsRef } = useHandTracking(videoRef)
 
   const [audioOn, setAudioOn] = useState(false)
@@ -215,8 +222,19 @@ export default function App() {
   useEffect(() => {
     synthRef.current.setMode(mode)
     stabilizeRef.current = createChordStabilizer()
+    palmModeRef.current = createPalmModeDetector()
     setLive(idleLive)
   }, [mode])
+
+  // The arpeggiator only applies to chord (gesture) mode.
+  useEffect(() => {
+    synthRef.current.setArp(mode === "gesture" ? gestureSettings.arp : null)
+  }, [gestureSettings.arp, mode])
+
+  // Keep the arp on the same tempo as the looper so the two stay locked.
+  useEffect(() => {
+    synthRef.current.setArpBpm(practiceSong?.bpm ?? loopBpm)
+  }, [loopBpm, practiceSong])
 
   // --- Main rAF loop ---
   useEffect(() => {
@@ -227,7 +245,7 @@ export default function App() {
     const publish = (next: LiveState) => {
       liveFrameRef.current = next
       const key = [next.chord, next.quality, next.qualityIndex, next.tonePct,
-        Math.round(next.volume * 16), Math.round(next.pitchHz)].join("|")
+        Math.round(next.volume * 16), Math.round(next.pitchHz), next.palmSide].join("|")
       if (key === lastUi) return
       lastUi = key
       setLive(next)
@@ -242,11 +260,15 @@ export default function App() {
       if (mode === "gesture") {
         const practice = practiceActiveRef.current
         let candidate: StabilizedChord | null = null
+        let palmFace: "palm" | "back" | null = null
         if (left) {
-          const leftTilt = wristTilt(left, "Left")
+          const facing = palmFacing(left, "Left") * (settings.invertPalmMode ? -1 : 1)
+          palmFace = facing >= 0 ? "palm" : "back"
+          // Palm toward the camera = major, back of the hand = minor.
+          const palmMajor = palmModeRef.current(facing)
           const rawChord = chordFromLeftHand(left, "Left")
           const isMajorMode = !practice && settings.modeControl === "fixed"
-            ? settings.fixedMode === "major" : leftTilt >= 0
+            ? settings.fixedMode === "major" : palmMajor
           const qualityIndex = !practice && settings.qualityControl === "fixed"
             ? settings.fixedQuality : right ? raisedFingerCount(right) : 0
           const thumbDown = right ? isThumbExtended(right, "Right") : false
@@ -258,13 +280,17 @@ export default function App() {
           }
         }
 
+        // Guided practice targets are written against the classic four
+        // qualities, so pin the palette while it runs.
+        const palette = practice ? DEFAULT_PALETTE : settings.chordPalette
+
         const stable = stabilizeRef.current(candidate, now)
         const chord = stable?.chord ?? null
         const isMajor = stable?.isMajorMode ?? settings.fixedMode === "major"
         const qualityIndex = !practice && settings.qualityControl === "fixed"
           ? settings.fixedQuality : (stable?.qualityIndex ?? 0)
         const thumbDown = stable?.thumbDown ?? false
-        const quality = qualityLabel(qualityIndex, isMajor, thumbDown)
+        const quality = qualityLabel(qualityIndex, isMajor, thumbDown, palette)
 
         let volume = 0, tone = 0
         let playedFreqs: number[] = []
@@ -280,7 +306,7 @@ export default function App() {
               )
               if (allowed) {
                 let notes = notesForQuality(
-                  chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
+                  chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor, palette)
                 if (thumbDown) notes = notes.map((n) => n / 2)
                 playedFreqs = notes
                 synth.playNotes(notes)
@@ -289,14 +315,23 @@ export default function App() {
                 playedFreqs = []
                 synth.setVolume(0)
               }
-            } else { synth.setVolume(0) }
+            } else {
+              synth.setVolume(0)
+              synth.releaseChord()
+            }
           }
-        } else if (audioOn) { synth.setVolume(0) }
+        } else if (audioOn) {
+          synth.setVolume(0)
+          synth.releaseChord()
+        }
 
         const loopEng = loopRef.current
         if (loopEng && loopEng.getState() === "recording") {
+          const sounding = playedFreqs.length > 0
+            ? synth.getSoundingNotes(playedFreqs)
+            : playedFreqs
           const autoStopped = loopEng.recordFrame({
-            freqs: playedFreqs,
+            freqs: sounding,
             volume: playedFreqs.length > 0 ? volume : 0,
             filterTilt: tone,
             chord: playedFreqs.length > 0 ? chord : null,
@@ -312,7 +347,7 @@ export default function App() {
         publish({
           volume: right ? volume : 0, tone,
           tonePct: Math.round(tone * 100), chord, quality, qualityIndex, pitchHz: 0,
-          octaveDown: thumbDown,
+          octaveDown: thumbDown, palmSide: palmFace,
         })
       } else {
         const pitchHz = right ? pitchFromHandY(right) : 0
@@ -340,7 +375,7 @@ export default function App() {
 
         publish({
           volume, tone: 0, tonePct: 0, chord: null, quality: "--",
-          qualityIndex: right && left ? 2 : 0, pitchHz, octaveDown: false,
+          qualityIndex: right && left ? 2 : 0, pitchHz, octaveDown: false, palmSide: null,
         })
       }
 
@@ -579,10 +614,10 @@ export default function App() {
     const isMajor = chord === chord.toUpperCase()
     const tones = chordTonesFromRoman(chord, isMajor, keyHz)
     if (!tones) return
-    const freqs = notesForQuality(tones, 1, isMajor) // default triad
+    const freqs = notesForQuality(tones, 1, isMajor, gestureSettings.chordPalette)
     loop.placeChord(trackIdx, stepIdx, chord, freqs)
     syncTrackInfos()
-  }, [keyHz, syncTrackInfos])
+  }, [gestureSettings.chordPalette, keyHz, syncTrackInfos])
 
   const handleTrackVolume = useCallback((trackIdx: number, vol: number) => {
     loopRef.current?.setTrackVolume(trackIdx, vol)
@@ -650,7 +685,7 @@ export default function App() {
     if (status === "loading") return "Loading hand model..."
     if (!audioOn) return "Audio off — click to start"
     if (mode === "gesture") {
-      const l = gestureSettings.modeControl === "fixed" ? "left = scale" : "left = scale + tilt"
+      const l = gestureSettings.modeControl === "fixed" ? "left = scale" : "left = scale + palm/back"
       const r = gestureSettings.qualityControl === "fixed" ? "right = vol/tone" : "right = style + vol"
       return `Gesture · ${l} · ${r}`
     }
@@ -676,6 +711,7 @@ export default function App() {
         chord={live.chord} quality={live.quality}
         pitchHz={live.pitchHz}
         octaveDown={live.octaveDown}
+        palmSide={live.palmSide}
         onHelp={() => setTutorialOpen(true)}
         onLearnSong={() => setSongPickerOpen(true)}
         statusText={statusText} audioOn={audioOn}

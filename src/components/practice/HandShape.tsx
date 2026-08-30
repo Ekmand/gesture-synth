@@ -1,4 +1,4 @@
-/** Stylized hand-shape diagrams for guided practice (mirrored camera / palm view). */
+/** Stylized hand-shape diagrams for guided practice, seen from the camera. */
 
 export type FingerSet = {
   thumb: boolean
@@ -32,8 +32,8 @@ export function qualityFingers(quality: number, octaveDown: boolean): FingerSet 
 type Props = {
   side: "left" | "right"
   fingers: FingerSet
-  /** Rotation in degrees as seen in mirrored view (left: −major / +minor). */
-  tiltDeg?: number
+  /** Which face of the hand the camera sees: palm = major, back = minor. */
+  face?: "palm" | "back"
   color: string
 }
 
@@ -60,18 +60,23 @@ function Finger({ x, up, color }: { x: number; up: boolean; color: string }) {
   )
 }
 
-export function HandShape({ side, fingers, tiltDeg = 0, color }: Props) {
+const KNUCKLE_Y = 76
+
+export function HandShape({ side, fingers, face = "palm", color }: Props) {
+  // Turning a hand over swaps which side the thumb appears on, so the diagram
+  // mirrors for the back of the hand exactly as the real hand does.
+  const mirrored = (side === "left") !== (face === "back")
   return (
     <svg
       className="hand-shape"
       viewBox="0 0 120 140"
       role="img"
-      aria-label={`${side} hand target shape`}
+      aria-label={`${side} hand target shape, ${face} toward camera`}
       width="100%"
       height="100%"
     >
-      <g transform={side === "left" ? "translate(120 0) scale(-1 1)" : undefined}>
-        <g transform={`rotate(${tiltDeg} 60 85)`}>
+      <g transform={mirrored ? "translate(120 0) scale(-1 1)" : undefined}>
+        <g>
           <rect
             x={fingers.thumb ? 2 : 8}
             y={fingers.thumb ? 62 : 74}
@@ -99,6 +104,10 @@ export function HandShape({ side, fingers, tiltDeg = 0, color }: Props) {
           <Finger x={FINGER_X.middle} up={fingers.middle} color={color} />
           <Finger x={FINGER_X.ring} up={fingers.ring} color={color} />
           <Finger x={FINGER_X.pinky} up={fingers.pinky} color={color} />
+          {face === "back" &&
+            Object.values(FINGER_X).map((x) => (
+              <circle key={x} cx={x} cy={KNUCKLE_Y} r={4} fill="currentColor" opacity={0.55} />
+            ))}
         </g>
       </g>
     </svg>

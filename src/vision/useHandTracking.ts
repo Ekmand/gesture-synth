@@ -23,6 +23,67 @@ export type HandTrackingStatus =
   | "ready"
   | "error"
 
+type Wrist = { x: number; y: number }
+type LastWrists = { left: Wrist | null; right: Wrist | null }
+
+const dist = (a: Wrist, b: Wrist) => Math.hypot(a.x - b.x, a.y - b.y)
+
+/**
+ * Split the detections into a left and a right hand.
+ *
+ * MediaPipe's handedness label is inferred partly from which face of the hand
+ * it sees, so turning a hand over — which this app now uses for major/minor —
+ * can make it label both hands the same. When that happens, keep the more
+ * confident label and give the other hand the opposite slot, breaking ties by
+ * whichever assignment stays closest to where each hand was last frame.
+ */
+function assignHands(
+  result: HandLandmarkerResult,
+  last: LastWrists,
+): { left: Landmark[] | null; right: Landmark[] | null } {
+  const hands = result.landmarks.map((marks, i) => ({
+    marks: marks as Landmark[],
+    label: result.handedness[i]?.[0]?.categoryName as Handedness | undefined,
+    score: result.handedness[i]?.[0]?.score ?? 0,
+  }))
+
+  if (hands.length === 0) return { left: null, right: null }
+
+  if (hands.length === 1) {
+    const only = hands[0]
+    // A single hand whose label just flipped is far more likely to be the same
+    // hand turning over than the other hand appearing where that one was.
+    const prevSame = only.label === "Left" ? last.left : last.right
+    const prevOther = only.label === "Left" ? last.right : last.left
+    const here = { x: only.marks[0].x, y: only.marks[0].y }
+    let label = only.label
+    if (label && only.score < 0.9 && prevOther && (!prevSame || dist(here, prevOther) + 0.06 < dist(here, prevSame))) {
+      label = label === "Left" ? "Right" : "Left"
+    }
+    return {
+      left: label === "Left" ? only.marks : null,
+      right: label === "Right" ? only.marks : null,
+    }
+  }
+
+  const [a, b] = hands
+  if (a.label && b.label && a.label !== b.label) {
+    return {
+      left: a.label === "Left" ? a.marks : b.marks,
+      right: a.label === "Right" ? a.marks : b.marks,
+    }
+  }
+
+  // Same (or missing) labels: trust the more confident one, flip the other.
+  const anchor = a.score >= b.score ? a : b
+  const other = anchor === a ? b : a
+  const anchorLabel: Handedness = anchor.label ?? "Left"
+  return {
+    left: anchorLabel === "Left" ? anchor.marks : other.marks,
+    right: anchorLabel === "Right" ? anchor.marks : other.marks,
+  }
+}
+
 export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const [status, setStatus] = useState<HandTrackingStatus>("idle")
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +91,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
   const landmarkerRef = useRef<HandLandmarker | null>(null)
   const rafRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
+  const lastAssignmentRef = useRef<LastWrists>({ left: null, right: null })
 
   useEffect(() => {
     let cancelled = false
@@ -69,6 +131,11 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
             },
             runningMode: "VIDEO",
             numHands: 2,
+            minHandDetectionConfidence: 0.6,
+            minHandPresenceConfidence: 0.6,
+            // Lower than detection: once a hand is found, keep following it
+            // through turns and partial occlusion instead of dropping out.
+            minTrackingConfidence: 0.4,
           })
         } catch {
           landmarker = await HandLandmarker.createFromOptions(vision, {
@@ -78,6 +145,9 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
             },
             runningMode: "VIDEO",
             numHands: 2,
+            minHandDetectionConfidence: 0.6,
+            minHandPresenceConfidence: 0.6,
+            minTrackingConfidence: 0.4,
           })
         }
         if (cancelled) {
@@ -99,13 +169,11 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
           if (v.currentTime !== lastVideoTimeRef.current) {
             lastVideoTimeRef.current = v.currentTime
             const result = lm.detectForVideo(v, now)
-            let left: Landmark[] | null = null
-            let right: Landmark[] | null = null
-            result.landmarks.forEach((marks, i) => {
-              const name = result.handedness[i]?.[0]?.categoryName as Handedness | undefined
-              if (name === "Left") left = marks as Landmark[]
-              if (name === "Right") right = marks as Landmark[]
-            })
+            const { left, right } = assignHands(result, lastAssignmentRef.current)
+            lastAssignmentRef.current = {
+              left: left ? { x: left[0].x, y: left[0].y } : null,
+              right: right ? { x: right[0].x, y: right[0].y } : null,
+            }
             handsRef.current = { left, right, result }
           }
           rafRef.current = requestAnimationFrame(tick)
@@ -127,6 +195,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       landmarkerRef.current?.close()
       landmarkerRef.current = null
       handsRef.current = { left: null, right: null, result: null }
+      lastAssignmentRef.current = { left: null, right: null }
       lastVideoTimeRef.current = -1
       const v = videoRef.current
       const stream = (v?.srcObject as MediaStream | null) ?? activeStream

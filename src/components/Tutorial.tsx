@@ -13,13 +13,13 @@ const STEPS = [
   {
     kicker: "Step 2 of 7",
     title: "Left hand = scale notes",
-    body: "Raise fingers to pick a scale degree (I\u2013V). Index + pinky makes VI; add the thumb for VII. By default, tilt flips major \u2194 minor \u2014 or lock major/minor in the left-hand settings.",
+    body: "Raise fingers to pick a scale degree (I\u2013V). Index + pinky makes VI; add the thumb for VII. Turn your hand over to flip major \u2194 minor: palm to the camera is major, back of the hand is minor \u2014 or lock the mode in the left-hand settings.",
     diagram: "hands" as const,
   },
   {
     kicker: "Step 3 of 7",
     title: "Right hand = expression",
-    body: "Move up/down for volume. By default, 1\u20134 fingers pick triad / inversion / 7ths. Wrist tilt sweeps the tone filter \u2014 try a slow tilt for crescendo effects.",
+    body: "Move up/down for volume. 1\u20134 fingers pick the chord style from the active palette (swap palettes in Settings for sus, 9ths or power chords). Wrist tilt sweeps the tone filter \u2014 try a slow tilt for crescendo effects. Turn on the arpeggiator in Settings to break chords into notes in time with your loops.",
     diagram: "hands" as const,
   },
   {
@@ -79,11 +79,11 @@ export function Tutorial({ open, onClose }: Props) {
           <div className={styles.diagram}>
             <div className={`${styles.hand} ${styles["hand--left"]}`}>
               <h4>Left</h4>
-              <p>Finger count → chord. Wrist tilt → major / minor.</p>
+              <p>Finger count → chord. Palm → major, back of hand → minor.</p>
             </div>
             <div className={`${styles.hand} ${styles["hand--right"]}`}>
               <h4>Right</h4>
-              <p>Height → volume. Fingers → quality. Tilt → tone.</p>
+              <p>Height → volume. Fingers → chord style. Tilt → tone.</p>
             </div>
           </div>
         )}

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
 import { KEY_OPTIONS } from "../music/chords"
+import { ARP_PATTERNS, ARP_RATES, type ArpPattern, type ArpRate } from "../audio/arp"
+import { CHORD_PALETTES, paletteById, type PaletteId } from "../music/chords"
 import {
-  FIXED_QUALITY_OPTIONS,
+  fixedQualityOptions,
   type FixedMode,
   type FixedQuality,
   type GestureSettings,
@@ -35,6 +37,7 @@ type Props = {
   quality: string
   pitchHz: number
   octaveDown: boolean
+  palmSide: "palm" | "back" | null
   onHelp: () => void
   onLearnSong: () => void
   statusText: string
@@ -58,6 +61,7 @@ export function Hud({
   quality,
   pitchHz,
   octaveDown,
+  palmSide,
   onHelp,
   onLearnSong,
   statusText,
@@ -65,7 +69,11 @@ export function Hud({
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const litCount = Math.round(volume * BARS)
-  const { modeControl, fixedMode, qualityControl, fixedQuality } = gestureSettings
+  const { modeControl, fixedMode, qualityControl, fixedQuality, invertPalmMode } =
+    gestureSettings
+  const palette = paletteById(gestureSettings.chordPalette)
+  const arp = gestureSettings.arp
+  const qualityOptions = fixedQualityOptions(gestureSettings.chordPalette)
   const socials = activeSocialLinks()
 
   const patch = (partial: Partial<GestureSettings>) => {
@@ -73,7 +81,7 @@ export function Hud({
   }
 
   const qualityOptionLabel = (value: FixedQuality) => {
-    const opt = FIXED_QUALITY_OPTIONS.find((o) => o.value === value)!
+    const opt = qualityOptions.find((o) => o.value === value)!
     if (modeControl === "fixed") {
       return fixedMode === "major" ? opt.major : opt.minor
     }
@@ -156,6 +164,14 @@ export function Hud({
         <div className={styles.chordBlock}>
           <p className={styles.chord}>{chord ?? "--"}</p>
           <p className={styles.quality}>{quality}</p>
+          {modeControl === "palm" && palmSide && (
+            <span className={styles.palmBadge}>
+              {palmSide === "palm" ? "palm · major" : "back · minor"}
+            </span>
+          )}
+          {mode === "gesture" && arp.enabled && (
+            <span className={styles.palmBadge}>arp · {arp.rate}</span>
+          )}
           {octaveDown && <span className={styles.octaveBadge}>-8ve</span>}
         </div>
       ) : (
@@ -261,7 +277,7 @@ export function Hud({
                     onChange={(e) => patch({ modeControl: e.target.value as ModeControl })}
                     aria-label="Left hand mode control"
                   >
-                    <option value="tilt">Scale notes + tilt major/minor</option>
+                    <option value="palm">Scale notes + palm/back major-minor</option>
                     <option value="fixed">Scale notes only (lock mode)</option>
                   </select>
                   {modeControl === "fixed" && (
@@ -276,10 +292,20 @@ export function Hud({
                     </select>
                   )}
                   <p className={styles.configHint}>
-                    {modeControl === "tilt"
-                      ? "Fingers pick the scale degree; wrist tilt flips major ↔ minor."
+                    {modeControl === "palm"
+                      ? "Fingers pick the scale degree. Show the camera your palm for major, the back of your hand for minor."
                       : "Fingers pick the scale degree only. Major/minor is set above."}
                   </p>
+                  {modeControl === "palm" && (
+                    <label className={styles.toggleRow}>
+                      <input
+                        type="checkbox"
+                        checked={invertPalmMode}
+                        onChange={(e) => patch({ invertPalmMode: e.target.checked })}
+                      />
+                      <span>Swap: back of hand = major</span>
+                    </label>
+                  )}
                 </div>
 
                 <div className={styles.configRow}>
@@ -304,7 +330,7 @@ export function Hud({
                       }
                       aria-label="Fixed chord style"
                     >
-                      {FIXED_QUALITY_OPTIONS.map((o) => (
+                      {qualityOptions.map((o) => (
                         <option key={o.value} value={o.value}>
                           {qualityOptionLabel(o.value)}
                         </option>
@@ -313,8 +339,93 @@ export function Hud({
                   )}
                   <p className={styles.configHint}>
                     {qualityControl === "fingers"
-                      ? "1–4 fingers set triad / inversion / 7ths. Height = volume, tilt = tone."
+                      ? "1–4 fingers set the chord style from the palette below. Height = volume, wrist tilt = tone."
                       : "Chord style is locked. Right hand still controls volume, tone, and octave."}
+                  </p>
+                </div>
+
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Chord palette</span>
+                  <select
+                    className={styles.selectSm}
+                    value={palette.id}
+                    onChange={(e) => patch({ chordPalette: e.target.value as PaletteId })}
+                    aria-label="Chord palette"
+                  >
+                    {CHORD_PALETTES.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className={styles.configHint}>
+                    {palette.hint}{" "}
+                    {palette.slots
+                      .map((q, i) => `${i + 1}: ${fixedMode === "minor" && modeControl === "fixed" ? q.minor : q.major}`)
+                      .join(" · ")}
+                  </p>
+                </div>
+
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Arpeggiator</span>
+                  <label className={styles.toggleRow}>
+                    <input
+                      type="checkbox"
+                      checked={arp.enabled}
+                      onChange={(e) => patch({ arp: { ...arp, enabled: e.target.checked } })}
+                    />
+                    <span>Break chords into notes</span>
+                  </label>
+                  {arp.enabled && (
+                    <>
+                      <select
+                        className={styles.selectSm}
+                        value={arp.pattern}
+                        onChange={(e) =>
+                          patch({ arp: { ...arp, pattern: e.target.value as ArpPattern } })
+                        }
+                        aria-label="Arpeggiator pattern"
+                      >
+                        {ARP_PATTERNS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className={styles.selectSm}
+                        value={arp.rate}
+                        onChange={(e) =>
+                          patch({ arp: { ...arp, rate: e.target.value as ArpRate } })
+                        }
+                        aria-label="Arpeggiator rate"
+                      >
+                        {ARP_RATES.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className={styles.selectSm}
+                        value={arp.octaves}
+                        onChange={(e) =>
+                          patch({
+                            arp: { ...arp, octaves: Number(e.target.value) as 1 | 2 | 3 },
+                          })
+                        }
+                        aria-label="Arpeggiator octave range"
+                      >
+                        <option value={1}>1 octave</option>
+                        <option value={2}>2 octaves</option>
+                        <option value={3}>3 octaves</option>
+                      </select>
+                    </>
+                  )}
+                  <p className={styles.configHint}>
+                    {arp.enabled
+                      ? "Runs at the sequencer BPM, so it stays locked to your loops. Recording captures the arpeggio, not the block chord."
+                      : "Off — chords sound as held blocks."}
                   </p>
                 </div>
               </>
