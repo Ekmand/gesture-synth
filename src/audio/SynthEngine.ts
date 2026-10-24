@@ -1,3 +1,6 @@
+/** Hard ceiling for the synth's master gain (full hand height = this). Leaves headroom for the mic. */
+const MASTER_CAP = 0.125
+
 export class SynthEngine {
   private ctx: AudioContext | null = null
   private filter: BiquadFilterNode | null = null
@@ -13,6 +16,17 @@ export class SynthEngine {
   // so Chrome keeps audio alive in background tabs
   private bus: GainNode | null = null
   private bgAudio: HTMLAudioElement | null = null
+  // Final output: bus (synth + loops) and the mic both feed mixBus → limiter → speakers / recordings
+  private mixBus: GainNode | null = null
+  /** Sidechain duck: the synth path eases down while someone is singing over it. */
+  private duck: GainNode | null = null
+  private speakerBus: GainNode | null = null
+  private micMonitor: GainNode | null = null
+  private synthDucked: GainNode | null = null
+  private synthDirect: GainNode | null = null
+  private monitorMic = false
+  private analyser: AnalyserNode | null = null
+  private analyserBuf: Float32Array<ArrayBuffer> | null = null
 
   ensureContext(): AudioContext {
     if (!this.ctx) {
@@ -24,7 +38,32 @@ export class SynthEngine {
       // comb-filter / phase artifacts when oscillators restart on note changes.
       this.bus = this.ctx.createGain()
       this.bus.gain.value = 1
-      this.bus.connect(this.ctx.destination)
+      this.mixBus = this.ctx.createGain()
+      const limiter = this.ctx.createDynamicsCompressor()
+      limiter.threshold.value = -3
+      limiter.knee.value = 4
+      limiter.ratio.value = 12
+      limiter.attack.value = 0.003
+      limiter.release.value = 0.15
+      this.duck = this.ctx.createGain()
+      // mixBus = what recordings capture (synth + mic). The speakers get their own feed so the
+      // mic can be left out of what you hear ("mic monitor" off) while still being recorded.
+      this.speakerBus = this.ctx.createGain()
+      this.micMonitor = this.ctx.createGain()
+      this.synthDucked = this.ctx.createGain()
+      this.synthDirect = this.ctx.createGain()
+      this.applyMonitor()
+      this.bus.connect(this.duck)
+      this.duck.connect(this.mixBus)
+      this.duck.connect(this.synthDucked).connect(this.speakerBus) // ducked under the voice when monitoring it
+      this.bus.connect(this.synthDirect).connect(this.speakerBus) // full level when the voice isn't in the speakers
+      this.micMonitor.connect(this.speakerBus)
+      this.speakerBus.connect(limiter)
+      limiter.connect(this.ctx.destination)
+      this.analyser = this.ctx.createAnalyser()
+      this.analyser.fftSize = 1024
+      this.analyserBuf = new Float32Array(this.analyser.fftSize)
+      this.bus.connect(this.analyser)
 
       // Silent MediaStream → <audio> keepalive so Chrome is less likely to suspend
       // the tab / AudioContext while loops play in the background. Muted so it does
@@ -86,6 +125,48 @@ export class SynthEngine {
     return this.bus!
   }
 
+  /** Whether the mic is heard on the output. Off by default; recordings always include the mic. */
+  setMonitor(on: boolean) {
+    this.monitorMic = on
+    this.applyMonitor()
+  }
+
+  private applyMonitor() {
+    const on = this.monitorMic
+    if (this.micMonitor) this.micMonitor.gain.value = on ? 1 : 0
+    if (this.synthDucked) this.synthDucked.gain.value = on ? 1 : 0
+    if (this.synthDirect) this.synthDirect.gain.value = on ? 0 : 1
+  }
+
+  /** Mic feed for the speakers (silent unless mic monitor is on). */
+  getMicMonitorNode(): GainNode {
+    this.ensureContext()
+    return this.micMonitor!
+  }
+
+  /** Final mix (synth + mic). Recordings and the mic connect here. */
+  getMixBus(): GainNode {
+    this.ensureContext()
+    return this.mixBus!
+  }
+
+  /** Duck the synth (and loops) under the voice: 1 = untouched, lower = quieter. */
+  setDuck(amount: number) {
+    if (!this.ctx || !this.duck) return
+    // Fast attack so the first syllable is clear, slower release so it doesn't pump.
+    const tc = amount < this.duck.gain.value ? 0.04 : 0.45
+    this.duck.gain.setTargetAtTime(amount, this.ctx.currentTime, tc)
+  }
+
+  /** RMS of the synth + loop signal (before the mic joins), ~0..0.3 in practice. */
+  getSynthLevel(): number {
+    if (!this.analyser || !this.analyserBuf) return 0
+    this.analyser.getFloatTimeDomainData(this.analyserBuf)
+    let sum = 0
+    for (const v of this.analyserBuf) sum += v * v
+    return Math.sqrt(sum / this.analyserBuf.length)
+  }
+
   setMode(mode: "gesture" | "theremin") {
     if (this.mode === mode) return
     this.stopAll()
@@ -94,7 +175,7 @@ export class SynthEngine {
 
   setVolume(level: number) {
     if (!this.ctx || !this.masterGain) return
-    const t = Math.max(0, Math.min(1, level))
+    const t = Math.max(0, Math.min(1, level)) * MASTER_CAP
     this.masterGain.gain.linearRampToValueAtTime(t, this.ctx.currentTime + 0.05)
   }
 
@@ -151,7 +232,7 @@ export class SynthEngine {
     const now = this.ctx.currentTime
     this.thereminOsc.frequency.setTargetAtTime(Math.max(20, freq), now, 0.03)
     this.thereminGain!.gain.setTargetAtTime(Math.max(0, Math.min(1, volume)), now, 0.04)
-    this.masterGain.gain.setTargetAtTime(1, now, 0.04)
+    this.masterGain.gain.setTargetAtTime(MASTER_CAP, now, 0.04)
   }
 
   stopThereminAudio() {

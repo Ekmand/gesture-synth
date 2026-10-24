@@ -56,3 +56,15 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+.bar {
+  overflow: hidden;
+}
+
+.stopBar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--coral);
+}

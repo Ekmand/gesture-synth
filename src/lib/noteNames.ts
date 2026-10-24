@@ -77,3 +77,9 @@ export function chordSymbolForDegree(keyName: string, mode: Mode, degree: Degree
   if (mode === "minor" && n === 2) return `${note}dim`
   return minor ? `${note}m` : note
 }
+
+/** Nearest equal-tempered note for a frequency, e.g. 261.6 -> "C4". */
+export function noteNameForHz(hz: number): string {
+  const midi = Math.round(69 + 12 * Math.log2(hz / 440))
+  return `${NOTE_NAMES_SHARP[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`
+}
