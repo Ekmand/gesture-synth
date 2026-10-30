@@ -123,7 +123,7 @@ export function notesForQuality(
 export function qualityLabel(
   qualityIndex: number,
   isMajorMode: boolean,
-  octaveDown: boolean,
+  octaveShift: number,
 ): string {
   const major: Record<number, string> = {
     1: "Major",
@@ -139,7 +139,10 @@ export function qualityLabel(
   }
   const base = (isMajorMode ? major : minor)[qualityIndex]
   if (!base) return "--"
-  return octaveDown ? `${base} (-8ve)` : base
+  if (octaveShift === 0) return base
+  if (octaveShift === -1) return `${base} (-8ve)`
+  if (octaveShift === 1) return `${base} (+8ve)`
+  return `${base} (${octaveShift > 0 ? "+" : ""}${octaveShift} oct)`
 }
 
 export function chordColorVar(roman: string | null): string {

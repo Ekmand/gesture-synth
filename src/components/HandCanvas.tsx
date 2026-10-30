@@ -14,6 +14,8 @@ type Props = {
   getResult: () => HandLandmarkerResult | null
   getWaveParams: () => WaveParams
   dimmed: boolean
+  /** Skip the edge darkening so the camera stays full brightness. */
+  vignette?: boolean
 }
 
 function coverCrop(
@@ -77,8 +79,10 @@ function drawWaves(
   ctx.restore()
 }
 
-export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed }: Props) {
+export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed, vignette = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const vignetteRef = useRef(vignette)
+  vignetteRef.current = vignette
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -129,11 +133,13 @@ export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed }: Props
       }
       ctx.restore()
 
-      const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
-      g.addColorStop(0, "rgba(11, 16, 20, 0)")
-      g.addColorStop(1, "rgba(11, 16, 20, 0.55)")
-      ctx.fillStyle = g
-      ctx.fillRect(0, 0, cw, ch)
+      if (vignetteRef.current) {
+        const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
+        g.addColorStop(0, "rgba(11, 16, 20, 0)")
+        g.addColorStop(1, "rgba(11, 16, 20, 0.55)")
+        ctx.fillStyle = g
+        ctx.fillRect(0, 0, cw, ch)
+      }
 
       const wave = getWaveParams()
       drawWaves(ctx, wave.volume, wave.qualityIndex, wave.tone, wave.chord)

@@ -16,6 +16,15 @@ export const GITHUB_CONTRIBUTORS = `${GITHUB_REPO}/graphs/contributors`
 export const COMMUNITY_HOME = "https://community.gesturesynth.com"
 export const COMMUNITY_BUILDER = `${COMMUNITY_HOME}/builder`
 
+/** Opens the community builder, with the searched title ready to record. */
+export function communityBuilderHref(title?: string) {
+  const trimmed = title?.trim()
+  if (!trimmed) return COMMUNITY_BUILDER
+  const url = new URL(COMMUNITY_BUILDER)
+  url.searchParams.set("title", trimmed.slice(0, 120))
+  return url.toString()
+}
+
 /**
  * Official Gesture Synth socials — update hrefs when handles change.
  * Entries with empty href are hidden in the UI.

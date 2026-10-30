@@ -9,13 +9,36 @@
   animation: rise 0.45s var(--ease-out);
 }
 
-.caption {
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin: 0 0 0.45rem;
-  text-align: center;
+}
+
+.caption {
+  margin: 0;
+  text-align: left;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.holding {
+  margin: 0;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--mint);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(61, 255, 224, 0.45);
+}
+
+.holding[hidden] {
+  display: none;
 }
 
 .row {
@@ -25,6 +48,7 @@
 }
 
 .pad {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -45,12 +69,49 @@
 
 .pad[data-active="true"] {
   background: var(--mint-dim);
-  border-color: rgba(61, 255, 224, 0.55);
-  box-shadow: 0 0 22px rgba(61, 255, 224, 0.18);
+  border-color: rgba(61, 255, 224, 0.85);
+  box-shadow: 0 0 22px rgba(61, 255, 224, 0.22);
   transform: translateY(-3px);
 }
 
+/* Hold progress draws a brighter outline around the played note. */
+.pad[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+  padding: 2px;
+  background: conic-gradient(
+    from -90deg,
+    var(--mint) calc(var(--hold, 0) * 360deg),
+    rgba(61, 255, 224, 0.22) 0
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(61, 255, 224, 0.7));
+  z-index: 0;
+}
+
+.pad[data-held="full"]::after {
+  animation: holdPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes holdPulse {
+  50% {
+    filter: drop-shadow(0 0 12px rgba(61, 255, 224, 0.95));
+  }
+}
+
 .note {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-display);
   font-weight: 800;
   font-size: clamp(0.95rem, 2.4vw, 1.25rem);
@@ -64,6 +125,8 @@
 }
 
 .roman {
+  position: relative;
+  z-index: 1;
   font-size: 0.65rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -71,6 +134,8 @@
 }
 
 .hint {
+  position: relative;
+  z-index: 1;
   font-size: 0.58rem;
   color: var(--text-muted);
   text-align: center;
@@ -91,6 +156,12 @@
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pad[data-held="full"]::after {
+    animation: none;
   }
 }
 

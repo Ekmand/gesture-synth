@@ -19,13 +19,13 @@ const STEPS = [
   {
     kicker: "Step 3 of 7",
     title: "Right hand = expression",
-    body: "Move up/down for volume. By default, 1\u20134 fingers pick triad / inversion / 7ths. Wrist tilt sweeps the tone filter \u2014 try a slow tilt for crescendo effects.",
+    body: "Move up/down for volume. By default, 1\u20134 fingers pick triad / inversion / 7ths, and the thumb drops one octave. Wrist tilt sweeps the tone filter \u2014 try a slow tilt for crescendo effects.",
     diagram: "hands" as const,
   },
   {
     kicker: "Step 4 of 7",
     title: "Customize the controls",
-    body: "Use the Left hand / Right hand menus under the key selector to simplify gestures \u2014 scale-only left hand, or a fixed chord style on the right.",
+    body: "Use the Left hand, Right hand, and Octave menus under the key selector to simplify gestures \u2014 scale-only left hand, a fixed chord style, or a locked octave instead of the thumb.",
     diagram: "mode" as const,
   },
   {

@@ -99,7 +99,7 @@ a.iconBtn {
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(6, 10, 14, 0.55);
+  background: rgba(0, 0, 0, 0.28);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -109,21 +109,22 @@ a.iconBtn {
   z-index: 41;
   top: max(0.75rem, env(safe-area-inset-top));
   left: max(0.75rem, env(safe-area-inset-left));
-  width: min(22rem, calc(100vw - 1.5rem));
+  width: min(22.5rem, calc(100vw - 1.5rem));
   max-height: min(78vh, 40rem);
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.85rem 0.9rem 1rem;
-  background: var(--bg-panel-solid);
-  border: 1px solid var(--stroke);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
+  gap: 0.65rem;
+  padding: 0.85rem 0.8rem 0.9rem;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(18, 26, 34, 0.72);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   pointer-events: auto;
-  animation: sheetIn 0.25s var(--ease-out);
+  animation: sheetIn 0.28s var(--ease-out);
 }
 
 .settingsHeader {
@@ -136,14 +137,30 @@ a.iconBtn {
 .settingsTitle {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
 }
 
-.configRow {
+.settingsHeader .iconBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.settingsHeader .iconBtn:hover {
+  background: rgba(61, 255, 224, 0.16);
+  border-color: rgba(61, 255, 224, 0.45);
+  color: var(--mint);
+}
+
+.configRow,
+.about {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  padding: 0.7rem 0.75rem 0.75rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 16, 0.45);
 }
 
 .toggleRow {
@@ -162,11 +179,7 @@ a.iconBtn {
 }
 
 .about {
-  display: flex;
-  flex-direction: column;
   gap: 0.35rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--stroke);
 }
 
 .aboutLine {
@@ -248,13 +261,25 @@ a.iconBtn {
 
 .selectSm {
   width: 100%;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--stroke);
-  border-radius: 10px;
-  padding: 0.4rem 0.65rem;
+  color-scheme: dark;
+  appearance: none;
+  background-color: rgba(0, 0, 0, 0.28);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%233dffe0' d='M1.2 1.4 6 6.2 10.8 1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.48rem 2rem 0.48rem 0.7rem;
   color: var(--mint);
   font-weight: 500;
   font-size: 0.82rem;
+}
+
+.selectSm:focus {
+  outline: none;
+  border-color: rgba(61, 255, 224, 0.55);
+  box-shadow: 0 0 0 3px rgba(61, 255, 224, 0.16);
 }
 
 .topRight {
