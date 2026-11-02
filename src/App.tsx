@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Analytics } from "@vercel/analytics/react"
 import { LoopEngine, type LoopState, type TrackInfo } from "./audio/LoopEngine"
 import { SynthEngine } from "./audio/SynthEngine"
 import { BeatGrid, CountInDisplay } from "./components/BeatGrid"
@@ -784,6 +785,7 @@ export default function App() {
       )}
 
       <Tutorial open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <Analytics />
     </div>
   )
 }
