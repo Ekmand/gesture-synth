@@ -40,6 +40,8 @@ type Props = {
   onStopModeChange: (mode: StopMode) => void
   micMonitor: boolean
   onMicMonitorChange: (on: boolean) => void
+  cleanRecording: boolean
+  onCleanRecordingChange: (on: boolean) => void
   volume: number
   tonePct: number
   chord: string | null
@@ -71,6 +73,8 @@ export function Hud({
   onStopModeChange,
   micMonitor,
   onMicMonitorChange,
+  cleanRecording,
+  onCleanRecordingChange,
   volume,
   tonePct,
   chord,
@@ -421,6 +425,21 @@ export function Hud({
               </label>
               <p className={styles.configHint}>
                 Level is automatic. The mic is always recorded; turn monitor mode on to also hear it on the output (use headphones to avoid feedback).
+              </p>
+            </div>
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Recording</span>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={cleanRecording}
+                  onChange={(e) => onCleanRecordingChange(e.target.checked)}
+                />
+                <span>Clean recording (no overlays)</span>
+              </label>
+              <p className={styles.configHint}>
+                Records only the webcam picture and audio: no hand dots, waves or note display.
               </p>
             </div>
 

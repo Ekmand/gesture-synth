@@ -83,6 +83,8 @@ export function paintScene(
   video: HTMLVideoElement,
   result: HandLandmarkerResult | null,
   wave: WaveParams,
+  /** Camera picture only: no hand dots, vignette or waves. */
+  clean = false,
 ) {
   const { width: cw, height: ch } = ctx.canvas
   const { sx, sy, sWidth, sHeight } = coverCrop(video.videoWidth, video.videoHeight, cw, ch)
@@ -92,7 +94,7 @@ export function paintScene(
   ctx.scale(-1, 1)
   ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cw, ch)
 
-  if (result) {
+  if (result && !clean) {
     const dot = Math.max(4, ch / 180)
     ctx.fillStyle = "rgba(255, 255, 255, 0.55)"
     for (const hand of result.landmarks) {
@@ -108,6 +110,7 @@ export function paintScene(
     }
   }
   ctx.restore()
+  if (clean) return
 
   const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
   g.addColorStop(0, "rgba(11, 16, 20, 0)")

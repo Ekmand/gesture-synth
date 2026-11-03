@@ -107,6 +107,8 @@ export function GlobalRecorder({ visible, stopMode, getHands, getSources }: Prop
   const mins = Math.floor(elapsed / 60)
   const secs = elapsed % 60
 
+  const hasChip = recording || stopProgress > 0 || note !== null
+
   return (
     <div className={styles.bar}>
       <button
@@ -115,30 +117,22 @@ export function GlobalRecorder({ visible, stopMode, getHands, getSources }: Prop
         data-recording={recording}
         onClick={() => void (recording ? stopRecording() : startRecording())}
         aria-label={recording ? "Stop video recording" : "Start video recording"}
+        title={recording ? "Stop recording" : "Record video"}
       >
-        {recording ? (
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <rect x="2" y="2" width="6" height="6" fill="currentColor" />
-          </svg>
-        ) : (
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <circle cx="5" cy="5" r="4" fill="currentColor" />
-          </svg>
-        )}
+        <span className={styles.recDot} />
       </button>
-      {recording ? (
-        <span className={styles.timer}>
-          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+      {hasChip && (
+        <span className={styles.chip}>
+          {recording && (
+            <span className={styles.timer}>
+              {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+            </span>
+          )}
+          {stopProgress > 0 && (
+            <span className={styles.label}>{recording ? "Stopping…" : "Starting…"}</span>
+          )}
+          {note && <span className={styles.label}>{note}</span>}
         </span>
-      ) : (
-        <span className={styles.label}>{GESTURE_RECORDING_ENABLED && stopMode === "fists" ? "Record video · hold both fists" : "Record video"}</span>
-      )}
-      {stopProgress > 0 && (
-        <span className={styles.label}>{recording ? "Stopping…" : "Starting…"}</span>
-      )}
-      {note && <span className={styles.label}>{note}</span>}
-      {stopProgress > 0 && (
-        <span className={styles.stopBar} style={{ width: `${stopProgress * 100}%` }} />
       )}
     </div>
   )

@@ -1,11 +1,13 @@
 import { paintScene, type WaveParams } from "../components/HandCanvas"
-import { chordColorVar } from "../music/chords"
 import { noteNameForHz } from "../lib/noteNames"
+import { activeRoman, scaleGuideForKey } from "../music/scale"
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision"
 
 export type OverlayState = {
   mode: "gesture" | "theremin"
   chord: string | null
+  /** Tonic of the selected key, to lay out the scale pads. */
+  keyHz: number
   quality: string
   octaveDown: boolean
   /** Frequencies currently sounding. */
@@ -21,21 +23,26 @@ export type RecorderSources = {
   synthBus: AudioNode
   /** Processed mic signal, or null when no mic is active. */
   micOutput: AudioNode | null
+  /** Webcam picture only: no hand dots, waves or notes overlay. */
+  clean: boolean
   getResult: () => HandLandmarkerResult | null
   getWave: () => WaveParams
   getOverlay: () => OverlayState
 }
 
-const WIDTH = 1920
-const HEIGHT = 1080
+/** Output fits inside 1920×1080 (or its portrait equivalent), keeping the window's aspect ratio. */
+const MAX_LONG = 1920
+const MAX_SHORT = 1080
 const FPS = 30
 
 function pickMimeType(): string {
+  // MP4 first: it plays natively everywhere (notably iOS, which can't play WebM). WebM is the fallback.
   const candidates = [
+    "video/mp4;codecs=avc1,mp4a.40.2",
+    "video/mp4",
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
     "video/webm",
-    "video/mp4",
   ]
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? ""
 }
@@ -50,57 +57,138 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-/** Bottom-center card: chord / quality on the left, note pills on the right. */
+// Colours and type mirror the web app's tokens.css / Hud / ScaleGuide styles.
+const MINT = "61, 255, 224"
+const CORAL = "255, 107, 90"
+const TEXT = "232, 244, 248"
+const DISPLAY = `"Syne", system-ui, sans-serif`
+const BODY = `"Outfit", system-ui, sans-serif`
+
+const scratch = document.createElement("canvas")
+
+type LetterSpacingCtx = CanvasRenderingContext2D & { letterSpacing: string }
+
+function text(
+  ctx: CanvasRenderingContext2D,
+  str: string,
+  x: number,
+  y: number,
+  font: string,
+  fill: string,
+  spacingEm = 0,
+) {
+  ctx.font = font
+  const size = parseFloat(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? "16")
+  ;(ctx as LetterSpacingCtx).letterSpacing = `${spacingEm * size}px`
+  ctx.fillStyle = fill
+  ctx.fillText(str, x, y)
+  ;(ctx as LetterSpacingCtx).letterSpacing = "0px"
+}
+
+/** The HUD's chord readout (centre of frame) plus the ScaleGuide row of scale pads along the bottom. */
 function drawNotesOverlay(ctx: CanvasRenderingContext2D, o: OverlayState) {
+  // Lay out in a 1080-high design space, then scale to the actual canvas.
+  const k = ctx.canvas.height / 1080
+  const W = ctx.canvas.width / k
+  const H = 1080
   const notes = [...new Set(o.freqs.map(noteNameForHz))]
-  const sounding = notes.length > 0
-  const title = o.mode === "gesture" ? (o.chord ?? "--") : (notes[0] ?? "--")
-  const sub = o.mode === "gesture" ? o.quality : sounding ? `${Math.round(o.freqs[0])} Hz` : "Theremin"
-  const rgb = chordColorVar(o.mode === "gesture" ? o.chord : null)
-  const font = "system-ui, -apple-system, 'Segoe UI', sans-serif"
-
-  const pillFont = `600 44px ${font}`
-  ctx.font = pillFont
-  const pills = o.mode === "gesture" ? notes : []
-  const pillW = pills.map((n) => ctx.measureText(n).width + 44)
-  const pillsTotal = pillW.reduce((a, b) => a + b, 0) + Math.max(0, pills.length - 1) * 14
-
-  ctx.font = `700 96px ${font}`
-  const titleW = ctx.measureText(title).width
-  const gap = pills.length ? 48 : 0
-  const w = Math.max(360, 56 + Math.max(titleW, 200) + gap + pillsTotal + 56)
-  const h = 190
-  const x = (WIDTH - w) / 2
-  const y = HEIGHT - h - 56
 
   ctx.save()
-  ctx.fillStyle = "rgba(11, 16, 20, 0.62)"
-  roundRect(ctx, x, y, w, h, 36)
-  ctx.fill()
-  ctx.strokeStyle = `rgba(${rgb}, ${sounding ? 0.9 : 0.25})`
-  ctx.lineWidth = 3
-  ctx.stroke()
+  ctx.scale(k, k)
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
 
-  ctx.textBaseline = "alphabetic"
-  ctx.fillStyle = sounding ? "#fff" : "rgba(255,255,255,0.5)"
-  ctx.font = `700 96px ${font}`
-  ctx.fillText(title, x + 56, y + 108)
-  ctx.fillStyle = "rgba(255,255,255,0.7)"
-  ctx.font = `500 34px ${font}`
-  ctx.fillText(o.octaveDown ? `${sub} · -8ve` : sub, x + 56, y + 156)
+  if (o.mode === "gesture") {
+    // Chord block: .chord / .quality / .octaveBadge, centred at 42% height like the app.
+    const chordSize = 96
+    const blockH = chordSize + 10 + 22 + (o.octaveDown ? 12 + 32 : 0)
+    let y = H * 0.42 - blockH / 2
+    ctx.save()
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)"
+    ctx.shadowBlur = 30
+    ctx.shadowOffsetY = 4
+    text(ctx, o.chord ?? "--", W / 2, y + chordSize / 2, `800 ${chordSize}px ${DISPLAY}`, `rgb(${MINT})`, -0.04)
+    ctx.restore()
+    y += chordSize + 10
+    text(ctx, o.quality, W / 2, y + 11, `400 19px ${BODY}`, `rgba(${TEXT}, 0.62)`)
+    if (o.octaveDown) {
+      y += 22 + 12
+      const label = "-8ve"
+      ctx.font = `700 15px ${BODY}`
+      const bw = ctx.measureText(label).width + 28
+      ctx.save()
+      ctx.shadowColor = `rgba(${CORAL}, 0.5)`
+      ctx.shadowBlur = 18
+      ctx.fillStyle = `rgba(${CORAL}, 0.2)`
+      roundRect(ctx, W / 2 - bw / 2, y, bw, 32, 16)
+      ctx.fill()
+      ctx.restore()
+      ctx.strokeStyle = `rgb(${CORAL})`
+      ctx.lineWidth = 1.5
+      roundRect(ctx, W / 2 - bw / 2, y, bw, 32, 16)
+      ctx.stroke()
+      text(ctx, label, W / 2, y + 17, `700 15px ${BODY}`, `rgb(${CORAL})`, 0.04)
+    }
 
-  let px = x + 56 + Math.max(titleW, 200) + gap
-  ctx.font = pillFont
-  pills.forEach((n, i) => {
-    ctx.fillStyle = `rgba(${rgb}, 0.9)`
-    roundRect(ctx, px, y + 62, pillW[i], 66, 33)
-    ctx.fill()
-    ctx.fillStyle = "#0b1014"
-    ctx.textAlign = "center"
-    ctx.fillText(n, px + pillW[i] / 2, y + 108)
-    ctx.textAlign = "left"
-    px += pillW[i] + 14
-  })
+    // Scale pads (ScaleGuide): every degree of the key on frosted dark cards; only the current chord is teal.
+    const degrees = scaleGuideForKey(o.keyHz)
+    const active = activeRoman(o.chord)
+    const gap = 10
+    const rowW = Math.min(W - 40, 1100)
+    const padW = (rowW - gap * (degrees.length - 1)) / degrees.length
+    const padH = 96
+    const x0 = (W - rowW) / 2
+    const yBase = H - 56 - padH
+
+    // Snapshot of the frame so each card can show a blurred copy of what is behind it (backdrop-filter).
+    scratch.width = ctx.canvas.width
+    scratch.height = ctx.canvas.height
+    scratch.getContext("2d")!.drawImage(ctx.canvas, 0, 0)
+
+    degrees.forEach((d, i) => {
+      const isActive = !d.isOctave && active === d.roman
+      const x = x0 + i * (padW + gap)
+      const y = yBase - (isActive ? 3 : 0)
+
+      ctx.save()
+      roundRect(ctx, x, y, padW, padH, 14)
+      ctx.clip()
+      ctx.filter = `blur(${10 * k}px)`
+      ctx.drawImage(scratch, 0, 0, W, H)
+      ctx.filter = "none"
+      ctx.fillStyle = isActive ? `rgba(${MINT}, 0.18)` : "rgba(12, 18, 24, 0.62)"
+      ctx.fillRect(x, y, padW, padH)
+      ctx.restore()
+
+      if (isActive) {
+        ctx.save()
+        ctx.shadowColor = `rgba(${MINT}, 0.3)`
+        ctx.shadowBlur = 24
+        ctx.strokeStyle = `rgba(${MINT}, 0.55)`
+        ctx.lineWidth = 1.5
+        roundRect(ctx, x, y, padW, padH, 14)
+        ctx.stroke()
+        ctx.restore()
+      } else {
+        ctx.strokeStyle = `rgba(${TEXT}, 0.12)`
+        ctx.lineWidth = 1.5
+        roundRect(ctx, x, y, padW, padH, 14)
+        ctx.stroke()
+      }
+
+      const cx = x + padW / 2
+      ctx.globalAlpha = d.isOctave ? 0.72 : 1
+      text(ctx, d.note, cx, y + 34, `800 32px ${DISPLAY}`, isActive ? `rgb(${MINT})` : `rgb(${TEXT})`, -0.03)
+      text(ctx, d.isOctave ? "I′" : d.roman, cx, y + 60, `600 15px ${BODY}`, `rgba(${TEXT}, 0.62)`, 0.04)
+      if (padW >= 100) text(ctx, d.gesture, cx, y + 80, `400 11px ${BODY}`, `rgba(${TEXT}, 0.62)`)
+      ctx.globalAlpha = 1
+    })
+  } else {
+    // Theremin readout: .hz in coral, with the nearest note where the volume label sits in the app.
+    const sounding = o.freqs.length > 0
+    text(ctx, sounding ? `${Math.round(o.freqs[0])} Hz` : "--", W / 2, H - 170, `700 62px ${DISPLAY}`, `rgb(${CORAL})`)
+    if (sounding) text(ctx, notes[0], W / 2, H - 116, `400 22px ${BODY}`, `rgba(${TEXT}, 0.62)`)
+  }
   ctx.restore()
 }
 
@@ -151,11 +239,6 @@ export class SessionRecorder {
   private taps: { from: AudioNode; dest: MediaStreamAudioDestinationNode }[] = []
   private started = false
 
-  constructor() {
-    this.canvas.width = WIDTH
-    this.canvas.height = HEIGHT
-  }
-
   get recording() {
     return this.started
   }
@@ -169,14 +252,33 @@ export class SessionRecorder {
 
   async start(src: RecorderSources) {
     const { audioCtx, bus } = src // synthBus / micOutput are used by the disabled stems below
+    // The overlay uses the web app's fonts; make sure they're loaded before the first frame.
+    await Promise.all(
+      [`800 96px "Syne"`, `700 62px "Syne"`, `400 19px "Outfit"`, `600 15px "Outfit"`, `700 15px "Outfit"`].map((f) =>
+        document.fonts.load(f).catch(() => []),
+      ),
+    )
+
+    // Match the browser window's shape (fixed for the whole take), at up to HD resolution.
+    const winW = Math.max(1, window.innerWidth)
+    const winH = Math.max(1, window.innerHeight)
+    const landscape = winW >= winH
+    const scale = Math.min(
+      (landscape ? MAX_LONG : MAX_SHORT) / winW,
+      (landscape ? MAX_SHORT : MAX_LONG) / winH,
+    )
+    // Encoders want even dimensions.
+    this.canvas.width = Math.max(2, Math.round((winW * scale) / 2) * 2)
+    this.canvas.height = Math.max(2, Math.round((winH * scale) / 2) * 2)
+
     // A suspended context emits no audio samples, which can leave the file empty.
     if (audioCtx.state !== "running") await audioCtx.resume()
 
     const draw = () => {
       const { video, getResult, getWave, getOverlay } = src
       if (!video.videoWidth) return
-      paintScene(this.ctx2d, video, getResult(), getWave())
-      drawNotesOverlay(this.ctx2d, getOverlay())
+      paintScene(this.ctx2d, video, getResult(), getWave(), src.clean)
+      if (!src.clean) drawNotesOverlay(this.ctx2d, getOverlay())
     }
     draw()
     this.timer = window.setInterval(draw, 1000 / FPS)

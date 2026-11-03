@@ -57,3 +57,22 @@ export function saveMicMonitor(on: boolean) {
     /* ignore */
   }
 }
+
+const CLEAN_KEY = "music-synth-clean-recording"
+
+/** Record just the webcam picture, with no overlays. Defaults to off. */
+export function loadCleanRecording(): boolean {
+  try {
+    return localStorage.getItem(CLEAN_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function saveCleanRecording(on: boolean) {
+  try {
+    localStorage.setItem(CLEAN_KEY, on ? "1" : "0")
+  } catch {
+    /* ignore */
+  }
+}

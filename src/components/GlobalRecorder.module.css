@@ -3,7 +3,71 @@
   top: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 7;
+  /* Above the HUD (z-index 15) so the header can never cover it */
+  z-index: 16;
+  /* Sized to the button alone, so the button never shifts when the chip appears */
+  display: flex;
+  pointer-events: none;
+}
+
+.recBtn {
+  position: relative;
+  flex: none;
+  width: 3.75rem;
+  height: 3.75rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  background: rgba(12, 18, 24, 0.35);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.15s var(--ease-out);
+}
+
+.recBtn:hover {
+  transform: scale(1.06);
+}
+
+.recBtn:active {
+  transform: scale(0.96);
+}
+
+.recBtn:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 3px;
+}
+
+/* Big red circle that morphs into a rounded red square while recording */
+.recDot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 50%;
+  background: #ff2d2d;
+  transform: translate(-50%, -50%);
+  transition:
+    width 0.2s var(--ease-out),
+    height 0.2s var(--ease-out),
+    border-radius 0.2s var(--ease-out);
+}
+
+.recBtn[data-recording="true"] .recDot {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 6px;
+}
+
+.chip {
+  /* Out of flow, centred under the button */
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -12,42 +76,20 @@
   border: 1px solid var(--stroke);
   border-radius: 999px;
   backdrop-filter: blur(12px);
-  pointer-events: auto;
-}
-
-.recBtn {
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 50%;
-  border: 2px solid var(--stroke);
-  background: transparent;
-  color: var(--coral);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.recBtn:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.recBtn[data-recording="true"] {
-  border-color: var(--coral);
-  animation: pulse 1s ease-in-out infinite;
 }
 
 .timer {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--coral);
+  color: #ff2d2d;
   min-width: 3rem;
+  text-align: center;
   animation: pulse 1s ease-in-out infinite;
 }
 
 .label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -57,14 +99,53 @@
   50% { opacity: 0.5; }
 }
 
-.bar {
-  overflow: hidden;
+@media (prefers-reduced-motion: reduce) {
+  .recDot,
+  .recBtn {
+    transition: none;
+  }
+
+  .timer {
+    animation: none;
+  }
 }
 
-.stopBar {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 3px;
-  background: var(--coral);
+/* Narrow / portrait: the top-centre position collides with the header, so the button sits centred at the bottom. */
+@media (max-width: 720px) {
+  /* In the bottom dock: centred, with the sequencer stacked beneath it. */
+  .bar {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    transform: none;
+  }
+
+  /* Bigger touch target on phones */
+  .recBtn {
+    width: 5.25rem;
+    height: 5.25rem;
+    border-width: 4px;
+  }
+
+  .recDot {
+    width: 3.8rem;
+    height: 3.8rem;
+  }
+
+  .recBtn[data-recording="true"] .recDot {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+  }
+
+  /* Near the bottom, so the chip goes above the button instead */
+  .chip {
+    top: auto;
+    bottom: calc(100% + 0.5rem);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
 }

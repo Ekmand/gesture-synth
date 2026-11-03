@@ -369,3 +369,16 @@
   }
   .volSlider { width: 1.8rem; }
 }
+
+/* Phones: full width, stacked in the bottom dock under the record button */
+@media (max-width: 720px) {
+  .wrapper {
+    position: relative; /* stays a positioning context for popovers */
+    bottom: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    max-height: 34vh;
+  }
+}

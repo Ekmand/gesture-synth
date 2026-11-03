@@ -20,10 +20,12 @@ import { fetchArrangement } from "./lib/fetchArrangement"
 import { keyNameToHz } from "./lib/keyHz"
 import {
   loadCameraDeviceId,
+  loadCleanRecording,
   loadMicDeviceId,
   loadMicMonitor,
   saveMicMonitor,
   saveCameraDeviceId,
+  saveCleanRecording,
   saveMicDeviceId,
 } from "./lib/recordingPrefs"
 import { loadStopMode, saveStopMode, type StopMode } from "./recording/stopDetector"
@@ -98,6 +100,11 @@ export default function App() {
     synthRef.current.setMonitor(on)
     return on
   })
+  const [cleanRecording, setCleanRecording] = useState(() => loadCleanRecording())
+  const cleanRecordingRef = useRef(cleanRecording)
+  cleanRecordingRef.current = cleanRecording
+  const keyHzRef = useRef(keyHz)
+  keyHzRef.current = keyHz
   const [stopMode, setStopMode] = useState<StopMode>(() => loadStopMode())
   const micInputRef = useRef(new MicInput())
   const settingsRef = useRef(gestureSettings)
@@ -218,6 +225,11 @@ export default function App() {
     synthRef.current.setMonitor(on)
   }, [])
 
+  const handleCleanRecordingChange = useCallback((on: boolean) => {
+    setCleanRecording(on)
+    saveCleanRecording(on)
+  }, [])
+
   const handleStopModeChange = useCallback((m: StopMode) => {
     setStopMode(m)
     saveStopMode(m)
@@ -238,11 +250,13 @@ export default function App() {
       bus: synth.getMixBus(),
       synthBus: synth.getOutputBus(),
       micOutput: micInputRef.current.output,
+      clean: cleanRecordingRef.current,
       getResult,
       getWave: getWaveParams,
       getOverlay: () => ({
         mode,
         chord: liveFrameRef.current.chord,
+        keyHz: keyHzRef.current,
         quality: liveFrameRef.current.quality,
         octaveDown: liveFrameRef.current.octaveDown,
         freqs: liveFrameRef.current.freqs,
@@ -760,6 +774,7 @@ export default function App() {
         cameraDeviceId={cameraDeviceId} onCameraDeviceIdChange={handleCameraChange}
         stopMode={stopMode} onStopModeChange={handleStopModeChange}
         micMonitor={micMonitor} onMicMonitorChange={handleMicMonitorChange}
+        cleanRecording={cleanRecording} onCleanRecordingChange={handleCleanRecordingChange}
         volume={live.volume} tonePct={live.tonePct}
         chord={live.chord} quality={live.quality}
         pitchHz={live.pitchHz}
@@ -769,60 +784,63 @@ export default function App() {
         statusText={statusText} audioOn={audioOn}
       />
 
-      <GlobalRecorder
-        visible={audioOn} stopMode={stopMode}
-        getHands={getHands} getSources={getRecorderSources} />
-
       <ScaleGuide
         keyHz={keyHz} chord={live.chord}
         visible={mode === "gesture" && audioOn && !practiceOpen}
         scaleOnly={gestureSettings.modeControl === "fixed"}
       />
 
-      <BeatGrid
-        tracks={trackInfos}
-        activeTrack={activeTrack}
-        currentStep={currentStep}
-        beatsPerBar={loopBeatsPerBar}
-        subsPerBeat={4}
-        onToggleStep={handleToggleStep}
-        onPlaceChord={handlePlaceChord}
-        onSelectTrack={handleSelectTrack}
-        onTrackVolume={handleTrackVolume}
-        onTrackMute={handleTrackMute}
-        onTrackSolo={handleTrackSolo}
-        visible={audioOn && sequencerVisible && !practiceOpen}
-      />
+      {/* Phones: record button, then the sequencer beneath it, stacked full-width. Desktop: display: contents (children position themselves). */}
+      <div className={styles.dock}>
+        <GlobalRecorder
+          visible={audioOn} stopMode={stopMode}
+          getHands={getHands} getSources={getRecorderSources} />
+
+        <BeatGrid
+          tracks={trackInfos}
+          activeTrack={activeTrack}
+          currentStep={currentStep}
+          beatsPerBar={loopBeatsPerBar}
+          subsPerBeat={4}
+          onToggleStep={handleToggleStep}
+          onPlaceChord={handlePlaceChord}
+          onSelectTrack={handleSelectTrack}
+          onTrackVolume={handleTrackVolume}
+          onTrackMute={handleTrackMute}
+          onTrackSolo={handleTrackSolo}
+          visible={audioOn && sequencerVisible && !practiceOpen}
+        />
+
+        <LoopControls
+          loopState={loopState} progress={loopProgress}
+          duration={loopDuration} bpm={loopBpm}
+          bars={loopBars} beatsPerBar={loopBeatsPerBar}
+          activeTrack={activeTrack}
+          anyTrackPlaying={anyTrackPlaying}
+          isPaused={loopIsPaused}
+          isExporting={isExporting}
+          metronome={metronome}
+          metronomeVolume={metronomeVolume}
+          metronomeSound={metronomeSound}
+          onMetronomeToggle={handleMetronomeToggle}
+          onMetronomeVolume={handleMetronomeVolume}
+          onMetronomeSound={handleMetronomeSound}
+          onBpmChange={handleLoopBpmChange}
+          onBarsChange={handleLoopBarsChange}
+          onBeatsPerBarChange={handleLoopBeatsPerBarChange}
+          onRecord={handleLoopRecord} onStop={handleLoopStop}
+          onPlayPause={handlePlayPause}
+          onClearTrack={handleClearTrack}
+          onClearAll={handleClearAll} onStopAll={handleStopAll}
+          onExport={handleExport}
+          didRestart={loopDidRestart}
+          visible={audioOn && sequencerVisible && !practiceOpen}
+        />
+      </div>
 
       <CountInDisplay
         beat={countInBeat} beatsPerBar={loopBeatsPerBar}
         visible={loopState === "countIn" && sequencerVisible}
-      />
-
-      <LoopControls
-        loopState={loopState} progress={loopProgress}
-        duration={loopDuration} bpm={loopBpm}
-        bars={loopBars} beatsPerBar={loopBeatsPerBar}
-        activeTrack={activeTrack}
-        anyTrackPlaying={anyTrackPlaying}
-        isPaused={loopIsPaused}
-        isExporting={isExporting}
-        metronome={metronome}
-        metronomeVolume={metronomeVolume}
-        metronomeSound={metronomeSound}
-        onMetronomeToggle={handleMetronomeToggle}
-        onMetronomeVolume={handleMetronomeVolume}
-        onMetronomeSound={handleMetronomeSound}
-        onBpmChange={handleLoopBpmChange}
-        onBarsChange={handleLoopBarsChange}
-        onBeatsPerBarChange={handleLoopBeatsPerBarChange}
-        onRecord={handleLoopRecord} onStop={handleLoopStop}
-        onPlayPause={handlePlayPause}
-        onClearTrack={handleClearTrack}
-        onClearAll={handleClearAll} onStopAll={handleStopAll}
-        onExport={handleExport}
-        didRestart={loopDidRestart}
-        visible={audioOn && sequencerVisible && !practiceOpen}
       />
 
       <SongPicker

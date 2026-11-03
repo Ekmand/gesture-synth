@@ -456,8 +456,10 @@ a.iconBtn {
     max-height: min(70dvh, 32rem);
   }
 
-  .bottomLeft {
-    max-width: min(55%, calc(100vw - 2rem));
+  /* Mobile: keep the bottom of the screen free for the record button */
+  .bottomLeft,
+  .cornerLinks {
+    display: none;
   }
 
   .status {

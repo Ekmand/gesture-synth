@@ -37,3 +37,25 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Desktop: the dock is transparent to layout and its children position themselves. */
+.dock {
+  display: contents;
+}
+
+@media (max-width: 720px) {
+  .dock {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Under the HUD (15) so the Settings sheet and its backdrop stay on top */
+    z-index: 14;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0 0.5rem max(0.9rem, env(safe-area-inset-bottom));
+    pointer-events: none;
+  }
+}
