@@ -18,6 +18,9 @@ import {
   GITHUB_REPO,
   activeSocialLinks,
 } from "../lib/siteLinks"
+import { MIC_DEFAULT, MIC_NONE } from "../lib/recordingPrefs"
+import { GESTURE_RECORDING_ENABLED, STOP_MODE_OPTIONS, type StopMode } from "../recording/stopDetector"
+import { useMediaInputs } from "../recording/useMediaInputs"
 import styles from "./Hud.module.css"
 
 export type InstrumentMode = "gesture" | "theremin"
@@ -31,6 +34,16 @@ type Props = {
   onGestureSettingsChange: (next: GestureSettings) => void
   sequencerVisible: boolean
   onSequencerVisibleChange: (visible: boolean) => void
+  micDeviceId: string
+  onMicDeviceIdChange: (id: string) => void
+  cameraDeviceId: string
+  onCameraDeviceIdChange: (id: string) => void
+  stopMode: StopMode
+  onStopModeChange: (mode: StopMode) => void
+  micMonitor: boolean
+  onMicMonitorChange: (on: boolean) => void
+  cleanRecording: boolean
+  onCleanRecordingChange: (on: boolean) => void
   volume: number
   tonePct: number
   chord: string | null
@@ -54,6 +67,16 @@ export function Hud({
   onGestureSettingsChange,
   sequencerVisible,
   onSequencerVisibleChange,
+  micDeviceId,
+  onMicDeviceIdChange,
+  cameraDeviceId,
+  onCameraDeviceIdChange,
+  stopMode,
+  onStopModeChange,
+  micMonitor,
+  onMicMonitorChange,
+  cleanRecording,
+  onCleanRecordingChange,
   volume,
   tonePct,
   chord,
@@ -66,6 +89,8 @@ export function Hud({
   audioOn,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const { inputs, labelsHidden, requestAccess } = useMediaInputs("audioinput", settingsOpen)
+  const cams = useMediaInputs("videoinput", settingsOpen)
   const litCount = Math.round(volume * BARS)
   const { modeControl, fixedMode, qualityControl, fixedQuality, octaveControl, fixedOctave } =
     gestureSettings
@@ -380,6 +405,110 @@ export function Hud({
                 Beat grid and loop transport stay hidden until you turn this on.
               </p>
             </div>
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Camera</span>
+              <select
+                className={styles.selectSm}
+                value={cameraDeviceId}
+                onChange={(e) => onCameraDeviceIdChange(e.target.value)}
+                aria-label="Camera"
+              >
+                <option value={MIC_DEFAULT}>System default</option>
+                {cams.inputs.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label}
+                  </option>
+                ))}
+                {cameraDeviceId !== MIC_DEFAULT &&
+                  !cams.inputs.some((d) => d.deviceId === cameraDeviceId) && (
+                    <option value={cameraDeviceId}>Saved camera (not connected)</option>
+                  )}
+              </select>
+              {cams.labelsHidden && (
+                <button type="button" className={styles.iconBtn} onClick={() => void cams.requestAccess()}>
+                  Show device names
+                </button>
+              )}
+              <p className={styles.configHint}>
+                Switching restarts hand tracking for a moment.
+              </p>
+            </div>
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Microphone</span>
+              <select
+                className={styles.selectSm}
+                value={micDeviceId}
+                onChange={(e) => onMicDeviceIdChange(e.target.value)}
+                aria-label="Recording microphone"
+              >
+                <option value={MIC_DEFAULT}>System default</option>
+                {inputs.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label}
+                  </option>
+                ))}
+                {micDeviceId !== MIC_DEFAULT &&
+                  micDeviceId !== MIC_NONE &&
+                  !inputs.some((d) => d.deviceId === micDeviceId) && (
+                    <option value={micDeviceId}>Saved microphone (not connected)</option>
+                  )}
+                <option value={MIC_NONE}>No microphone</option>
+              </select>
+              {labelsHidden && (
+                <button type="button" className={styles.iconBtn} onClick={() => void requestAccess()}>
+                  Show device names
+                </button>
+              )}
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={micMonitor}
+                  onChange={(e) => onMicMonitorChange(e.target.checked)}
+                />
+                <span>Mic monitor mode</span>
+              </label>
+              <p className={styles.configHint}>
+                Level is automatic. The mic is always recorded; turn monitor mode on to also hear it on the output (use headphones to avoid feedback).
+              </p>
+            </div>
+
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Recording</span>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={cleanRecording}
+                  onChange={(e) => onCleanRecordingChange(e.target.checked)}
+                />
+                <span>Clean recording (no overlays)</span>
+              </label>
+              <p className={styles.configHint}>
+                Records only the webcam picture and audio: no hand dots, waves or note display.
+              </p>
+            </div>
+
+            {GESTURE_RECORDING_ENABLED && (
+            <div className={styles.configRow}>
+              <span className={styles.configLabel}>Record gesture</span>
+              <select
+                className={styles.selectSm}
+                value={stopMode}
+                onChange={(e) => onStopModeChange(e.target.value as StopMode)}
+                aria-label="Record gesture"
+              >
+                {STOP_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <p className={styles.configHint}>
+                {STOP_MODE_OPTIONS.find((o) => o.value === stopMode)?.hint}
+              </p>
+            </div>
+            )}
 
             <div className={styles.about}>
               <span className={styles.configLabel}>About</span>

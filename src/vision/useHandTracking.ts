@@ -23,7 +23,10 @@ export type HandTrackingStatus =
   | "ready"
   | "error"
 
-export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | null>) {
+export function useHandTracking(
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  cameraDeviceId = "default",
+) {
   const [status, setStatus] = useState<HandTrackingStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const handsRef = useRef<TrackedHands>({ left: null, right: null, result: null })
@@ -43,7 +46,12 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
           throw new Error("Camera API unavailable in this browser")
         }
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480 },
+          video: {
+            ...(cameraDeviceId !== "default" ? { deviceId: { ideal: cameraDeviceId } } : {}),
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
+          },
           audio: false,
         })
         activeStream = stream
@@ -134,7 +142,7 @@ export function useHandTracking(videoRef: React.RefObject<HTMLVideoElement | nul
       if (v) v.srcObject = null
       activeStream = null
     }
-  }, [videoRef])
+  }, [videoRef, cameraDeviceId])
 
   return { status, error, handsRef }
 }

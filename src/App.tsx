@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Analytics } from "@vercel/analytics/react"
 import { LoopEngine, type LoopState, type TrackInfo } from "./audio/LoopEngine"
+import { MicInput } from "./audio/MicInput"
 import { SynthEngine } from "./audio/SynthEngine"
 import { BeatGrid, CountInDisplay } from "./components/BeatGrid"
+import { GlobalRecorder } from "./components/GlobalRecorder"
 import { HandCanvas } from "./components/HandCanvas"
 import { Hud, type InstrumentMode } from "./components/Hud"
 import { LoopControls } from "./components/LoopControls"
@@ -17,6 +19,18 @@ import { shouldShowTutorial, Tutorial } from "./components/Tutorial"
 import { arrangementToPracticeSong } from "./lib/arrangementAdapter"
 import { fetchArrangement } from "./lib/fetchArrangement"
 import { keyNameToHz } from "./lib/keyHz"
+import {
+  loadCameraDeviceId,
+  loadCleanRecording,
+  loadMicDeviceId,
+  loadMicMonitor,
+  saveMicMonitor,
+  saveCameraDeviceId,
+  saveCleanRecording,
+  saveMicDeviceId,
+} from "./lib/recordingPrefs"
+import { loadStopMode, saveStopMode, type StopMode } from "./recording/stopDetector"
+import type { RecorderSources } from "./recording/SessionRecorder"
 import { compareLive, isFullMatch } from "./lib/practiceMatch"
 import type { GestureTarget, PracticeSong } from "./lib/practiceTypes"
 import {
@@ -60,11 +74,12 @@ type LiveState = {
   /** Right thumb extended. Practice matching uses this, not the locked octave. */
   octaveDown: boolean
   octaveShift: number
+  freqs: number[]
 }
 
 const idleLive: LiveState = {
   volume: 0, tone: 0, tonePct: 0, chord: null, quality: "--", qualityIndex: 0, pitchHz: 0,
-  octaveDown: false, octaveShift: 0,
+  octaveDown: false, octaveShift: 0, freqs: [],
 }
 
 const EMPTY_TRACKS: TrackInfo[] = Array.from({ length: 4 }, () => ({
@@ -75,7 +90,8 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const synthRef = useRef(new SynthEngine())
   const stabilizeRef = useRef(createChordStabilizer())
-  const { status, error, handsRef } = useHandTracking(videoRef)
+  const [cameraDeviceId, setCameraDeviceId] = useState(() => loadCameraDeviceId())
+  const { status, error, handsRef } = useHandTracking(videoRef, cameraDeviceId)
 
   const [audioOn, setAudioOn] = useState(false)
   const [mode, setMode] = useState<InstrumentMode>("gesture")
@@ -83,6 +99,19 @@ export default function App() {
   const [gestureSettings, setGestureSettings] = useState<GestureSettings>(() =>
     loadGestureSettings(),
   )
+  const [micDeviceId, setMicDeviceId] = useState(() => loadMicDeviceId())
+  const [micMonitor, setMicMonitor] = useState(() => {
+    const on = loadMicMonitor()
+    synthRef.current.setMonitor(on)
+    return on
+  })
+  const [cleanRecording, setCleanRecording] = useState(() => loadCleanRecording())
+  const cleanRecordingRef = useRef(cleanRecording)
+  cleanRecordingRef.current = cleanRecording
+  const keyHzRef = useRef(keyHz)
+  keyHzRef.current = keyHz
+  const [stopMode, setStopMode] = useState<StopMode>(() => loadStopMode())
+  const micInputRef = useRef(new MicInput())
   const settingsRef = useRef(gestureSettings)
   settingsRef.current = gestureSettings
 
@@ -176,6 +205,7 @@ export default function App() {
   }, [])
 
   const getResult = useCallback(() => handsRef.current.result, [handsRef])
+  const getHands = useCallback(() => handsRef.current, [handsRef])
   const getWaveParams = useCallback(
     () => ({
       volume: liveFrameRef.current.volume,
@@ -188,6 +218,56 @@ export default function App() {
     }),
     [mode],
   )
+
+  const handleMicChange = useCallback((id: string) => {
+    setMicDeviceId(id)
+    saveMicDeviceId(id)
+  }, [])
+
+  const handleMicMonitorChange = useCallback((on: boolean) => {
+    setMicMonitor(on)
+    saveMicMonitor(on)
+    synthRef.current.setMonitor(on)
+  }, [])
+
+  const handleCleanRecordingChange = useCallback((on: boolean) => {
+    setCleanRecording(on)
+    saveCleanRecording(on)
+  }, [])
+
+  const handleStopModeChange = useCallback((m: StopMode) => {
+    setStopMode(m)
+    saveStopMode(m)
+  }, [])
+
+  const handleCameraChange = useCallback((id: string) => {
+    setCameraDeviceId(id)
+    saveCameraDeviceId(id)
+  }, [])
+
+  const getRecorderSources = useCallback((): RecorderSources | null => {
+    const video = videoRef.current
+    if (!video || !video.videoWidth) return null
+    const synth = synthRef.current
+    return {
+      video,
+      audioCtx: synth.getContext(),
+      bus: synth.getMixBus(),
+      synthBus: synth.getOutputBus(),
+      micOutput: micInputRef.current.output,
+      clean: cleanRecordingRef.current,
+      getResult,
+      getWave: getWaveParams,
+      getOverlay: () => ({
+        mode,
+        chord: liveFrameRef.current.chord,
+        keyHz: keyHzRef.current,
+        quality: liveFrameRef.current.quality,
+        octaveDown: liveFrameRef.current.octaveDown,
+        freqs: liveFrameRef.current.freqs,
+      }),
+    }
+  }, [getResult, getWaveParams, mode])
 
   const updateGestureSettings = (next: GestureSettings) => {
     setGestureSettings(next)
@@ -318,7 +398,7 @@ export default function App() {
         publish({
           volume: right ? volume : 0, tone,
           tonePct: Math.round(tone * 100), chord, quality, qualityIndex, pitchHz: 0,
-          octaveDown: thumbDown, octaveShift,
+          octaveDown: thumbDown, octaveShift, freqs: playedFreqs,
         })
       } else {
         const pitchHz = right ? pitchFromHandY(right) : 0
@@ -347,6 +427,7 @@ export default function App() {
         publish({
           volume, tone: 0, tonePct: 0, chord: null, quality: "--",
           qualityIndex: right && left ? 2 : 0, pitchHz, octaveDown: false, octaveShift: 0,
+          freqs: thereminActive ? [pitchHz] : [],
         })
       }
 
@@ -376,6 +457,23 @@ export default function App() {
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [audioOn, handsRef, keyHz, mode, syncTrackInfos])
+
+  // Live mic → output bus (monitoring + recording). Restarts when the device changes.
+  useEffect(() => {
+    if (!audioOn) return
+    const mic = micInputRef.current
+    void mic.start(
+      synthRef.current.getContext(),
+      synthRef.current.getMixBus(),
+      synthRef.current.getMicMonitorNode(),
+      micDeviceId,
+      (amount) => synthRef.current.setDuck(amount),
+    )
+    return () => {
+      mic.stop()
+      synthRef.current.setDuck(1)
+    }
+  }, [audioOn, micDeviceId])
 
   // --- Worker-driven loop tick (runs in background tabs) ---
   useEffect(() => {
@@ -679,6 +777,11 @@ export default function App() {
         onGestureSettingsChange={updateGestureSettings}
         sequencerVisible={sequencerVisible}
         onSequencerVisibleChange={handleSequencerVisibleChange}
+        micDeviceId={micDeviceId} onMicDeviceIdChange={handleMicChange}
+        cameraDeviceId={cameraDeviceId} onCameraDeviceIdChange={handleCameraChange}
+        stopMode={stopMode} onStopModeChange={handleStopModeChange}
+        micMonitor={micMonitor} onMicMonitorChange={handleMicMonitorChange}
+        cleanRecording={cleanRecording} onCleanRecordingChange={handleCleanRecordingChange}
         volume={live.volume} tonePct={live.tonePct}
         chord={live.chord} quality={live.quality}
         pitchHz={live.pitchHz}
@@ -694,50 +797,57 @@ export default function App() {
         scaleOnly={gestureSettings.modeControl === "fixed"}
       />
 
-      <BeatGrid
-        tracks={trackInfos}
-        activeTrack={activeTrack}
-        currentStep={currentStep}
-        beatsPerBar={loopBeatsPerBar}
-        subsPerBeat={4}
-        onToggleStep={handleToggleStep}
-        onPlaceChord={handlePlaceChord}
-        onSelectTrack={handleSelectTrack}
-        onTrackVolume={handleTrackVolume}
-        onTrackMute={handleTrackMute}
-        onTrackSolo={handleTrackSolo}
-        visible={audioOn && sequencerVisible && !practiceOpen}
-      />
+      {/* Phones: record button, then the sequencer beneath it, stacked full-width. Desktop: display: contents (children position themselves). */}
+      <div className={styles.dock}>
+        <GlobalRecorder
+          visible={audioOn} stopMode={stopMode}
+          getHands={getHands} getSources={getRecorderSources} />
+
+        <BeatGrid
+          tracks={trackInfos}
+          activeTrack={activeTrack}
+          currentStep={currentStep}
+          beatsPerBar={loopBeatsPerBar}
+          subsPerBeat={4}
+          onToggleStep={handleToggleStep}
+          onPlaceChord={handlePlaceChord}
+          onSelectTrack={handleSelectTrack}
+          onTrackVolume={handleTrackVolume}
+          onTrackMute={handleTrackMute}
+          onTrackSolo={handleTrackSolo}
+          visible={audioOn && sequencerVisible && !practiceOpen}
+        />
+
+        <LoopControls
+          loopState={loopState} progress={loopProgress}
+          duration={loopDuration} bpm={loopBpm}
+          bars={loopBars} beatsPerBar={loopBeatsPerBar}
+          activeTrack={activeTrack}
+          anyTrackPlaying={anyTrackPlaying}
+          isPaused={loopIsPaused}
+          isExporting={isExporting}
+          metronome={metronome}
+          metronomeVolume={metronomeVolume}
+          metronomeSound={metronomeSound}
+          onMetronomeToggle={handleMetronomeToggle}
+          onMetronomeVolume={handleMetronomeVolume}
+          onMetronomeSound={handleMetronomeSound}
+          onBpmChange={handleLoopBpmChange}
+          onBarsChange={handleLoopBarsChange}
+          onBeatsPerBarChange={handleLoopBeatsPerBarChange}
+          onRecord={handleLoopRecord} onStop={handleLoopStop}
+          onPlayPause={handlePlayPause}
+          onClearTrack={handleClearTrack}
+          onClearAll={handleClearAll} onStopAll={handleStopAll}
+          onExport={handleExport}
+          didRestart={loopDidRestart}
+          visible={audioOn && sequencerVisible && !practiceOpen}
+        />
+      </div>
 
       <CountInDisplay
         beat={countInBeat} beatsPerBar={loopBeatsPerBar}
         visible={loopState === "countIn" && sequencerVisible}
-      />
-
-      <LoopControls
-        loopState={loopState} progress={loopProgress}
-        duration={loopDuration} bpm={loopBpm}
-        bars={loopBars} beatsPerBar={loopBeatsPerBar}
-        activeTrack={activeTrack}
-        anyTrackPlaying={anyTrackPlaying}
-        isPaused={loopIsPaused}
-        isExporting={isExporting}
-        metronome={metronome}
-        metronomeVolume={metronomeVolume}
-        metronomeSound={metronomeSound}
-        onMetronomeToggle={handleMetronomeToggle}
-        onMetronomeVolume={handleMetronomeVolume}
-        onMetronomeSound={handleMetronomeSound}
-        onBpmChange={handleLoopBpmChange}
-        onBarsChange={handleLoopBarsChange}
-        onBeatsPerBarChange={handleLoopBeatsPerBarChange}
-        onRecord={handleLoopRecord} onStop={handleLoopStop}
-        onPlayPause={handlePlayPause}
-        onClearTrack={handleClearTrack}
-        onClearAll={handleClearAll} onStopAll={handleStopAll}
-        onExport={handleExport}
-        didRestart={loopDidRestart}
-        visible={audioOn && sequencerVisible && !practiceOpen}
       />
 
       <SongPicker

@@ -398,3 +398,17 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* Phones: full width, stacked in the bottom dock under the record button */
+@media (max-width: 720px) {
+  .loopBar {
+    position: relative; /* stays a positioning context for popovers */
+    bottom: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    border-radius: var(--radius);
+  }
+}

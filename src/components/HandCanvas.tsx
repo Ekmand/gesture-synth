@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision"
 import { chordColorVar } from "../music/chords"
 
-type WaveParams = {
+export type WaveParams = {
   volume: number
   qualityIndex: number
   tone: number
@@ -79,6 +79,54 @@ function drawWaves(
   ctx.restore()
 }
 
+/** Draw one frame (mirrored camera, hand dots, vignette, waves). Shared by the live view and the recorder. */
+export function paintScene(
+  ctx: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  result: HandLandmarkerResult | null,
+  wave: WaveParams,
+  /** Camera picture only: no hand dots, vignette or waves. */
+  clean = false,
+  /** Edge darkening; off keeps the camera at full brightness. */
+  vignette = true,
+) {
+  const { width: cw, height: ch } = ctx.canvas
+  const { sx, sy, sWidth, sHeight } = coverCrop(video.videoWidth, video.videoHeight, cw, ch)
+  ctx.save()
+  ctx.clearRect(0, 0, cw, ch)
+  ctx.translate(cw, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cw, ch)
+
+  if (result && !clean) {
+    const dot = Math.max(4, ch / 180)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)"
+    for (const hand of result.landmarks) {
+      for (const pt of hand) {
+        const lx = pt.x * video.videoWidth
+        const ly = pt.y * video.videoHeight
+        const dx = ((lx - sx) / sWidth) * cw
+        const dy = ((ly - sy) / sHeight) * ch
+        ctx.beginPath()
+        ctx.arc(dx, dy, dot, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+  }
+  ctx.restore()
+  if (clean) return
+
+  if (vignette) {
+    const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
+    g.addColorStop(0, "rgba(11, 16, 20, 0)")
+    g.addColorStop(1, "rgba(11, 16, 20, 0.55)")
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, cw, ch)
+  }
+
+  drawWaves(ctx, wave.volume, wave.qualityIndex, wave.tone, wave.chord)
+}
+
 export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed, vignette = true }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const vignetteRef = useRef(vignette)
@@ -99,50 +147,9 @@ export function HandCanvas({ videoRef, getResult, getWaveParams, dimmed, vignett
     const paint = () => {
       const video = videoRef.current
       const ctx = canvas.getContext("2d")
-      if (!ctx || !video || !video.videoWidth) {
-        raf = requestAnimationFrame(paint)
-        return
+      if (ctx && video && video.videoWidth) {
+        paintScene(ctx, video, getResult(), getWaveParams(), false, vignetteRef.current)
       }
-      const { width: cw, height: ch } = canvas
-      const { sx, sy, sWidth, sHeight } = coverCrop(
-        video.videoWidth,
-        video.videoHeight,
-        cw,
-        ch,
-      )
-      ctx.save()
-      ctx.clearRect(0, 0, cw, ch)
-      ctx.translate(cw, 0)
-      ctx.scale(-1, 1)
-      ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, cw, ch)
-
-      const result = getResult()
-      if (result) {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.55)"
-        for (const hand of result.landmarks) {
-          for (const pt of hand) {
-            const lx = pt.x * video.videoWidth
-            const ly = pt.y * video.videoHeight
-            const dx = ((lx - sx) / sWidth) * cw
-            const dy = ((ly - sy) / sHeight) * ch
-            ctx.beginPath()
-            ctx.arc(dx, dy, 4, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        }
-      }
-      ctx.restore()
-
-      if (vignetteRef.current) {
-        const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * 0.2, cw / 2, ch / 2, ch * 0.75)
-        g.addColorStop(0, "rgba(11, 16, 20, 0)")
-        g.addColorStop(1, "rgba(11, 16, 20, 0.55)")
-        ctx.fillStyle = g
-        ctx.fillRect(0, 0, cw, ch)
-      }
-
-      const wave = getWaveParams()
-      drawWaves(ctx, wave.volume, wave.qualityIndex, wave.tone, wave.chord)
       raf = requestAnimationFrame(paint)
     }
     raf = requestAnimationFrame(paint)
