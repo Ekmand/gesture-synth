@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { KEY_OPTIONS } from "../music/chords"
 import {
   FIXED_QUALITY_OPTIONS,
+  OCTAVE_SHIFTS,
+  octaveShiftLabel,
   type FixedMode,
   type FixedQuality,
   type GestureSettings,
@@ -47,7 +49,7 @@ type Props = {
   chord: string | null
   quality: string
   pitchHz: number
-  octaveDown: boolean
+  octaveShift: number
   onHelp: () => void
   onLearnSong: () => void
   statusText: string
@@ -80,7 +82,7 @@ export function Hud({
   chord,
   quality,
   pitchHz,
-  octaveDown,
+  octaveShift,
   onHelp,
   onLearnSong,
   statusText,
@@ -90,7 +92,9 @@ export function Hud({
   const { inputs, labelsHidden, requestAccess } = useMediaInputs("audioinput", settingsOpen)
   const cams = useMediaInputs("videoinput", settingsOpen)
   const litCount = Math.round(volume * BARS)
-  const { modeControl, fixedMode, qualityControl, fixedQuality } = gestureSettings
+  const { modeControl, fixedMode, qualityControl, fixedQuality, octaveControl, fixedOctave } =
+    gestureSettings
+  const shiftLabel = octaveShiftLabel(octaveShift)
   const socials = activeSocialLinks()
 
   const patch = (partial: Partial<GestureSettings>) => {
@@ -181,7 +185,7 @@ export function Hud({
         <div className={styles.chordBlock}>
           <p className={styles.chord}>{chord ?? "--"}</p>
           <p className={styles.quality}>{quality}</p>
-          {octaveDown && <span className={styles.octaveBadge}>-8ve</span>}
+          {shiftLabel && <span className={styles.octaveBadge}>{shiftLabel}</span>}
         </div>
       ) : (
         <div className={styles.thereminReadout}>
@@ -339,7 +343,49 @@ export function Hud({
                   <p className={styles.configHint}>
                     {qualityControl === "fingers"
                       ? "1–4 fingers set triad / inversion / 7ths. Height = volume, tilt = tone."
-                      : "Chord style is locked. Right hand still controls volume, tone, and octave."}
+                      : octaveControl === "thumb"
+                        ? "Chord style is locked. Right hand still controls volume, tone, and octave."
+                        : "Chord style and octave are locked. Right hand still controls volume and tone."}
+                  </p>
+                </div>
+
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Octave</span>
+                  <select
+                    className={styles.selectSm}
+                    value={octaveControl === "thumb" ? "thumb" : String(fixedOctave)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === "thumb") {
+                        patch({ octaveControl: "thumb" })
+                        return
+                      }
+                      patch({
+                        octaveControl: "fixed",
+                        fixedOctave: Number(value),
+                      })
+                    }}
+                    aria-label="Octave"
+                  >
+                    <option value="thumb">Thumb (down one octave)</option>
+                    {OCTAVE_SHIFTS.map((shift) => (
+                      <option key={shift} value={shift}>
+                        {shift === 0
+                          ? "0 — middle"
+                          : shift === -1
+                            ? "−1 octave"
+                            : shift === 1
+                              ? "+1 octave"
+                              : shift === -2
+                                ? "−2 octaves"
+                                : "+2 octaves"}
+                      </option>
+                    ))}
+                  </select>
+                  <p className={styles.configHint}>
+                    {octaveControl === "thumb"
+                      ? "Thumb out drops the chord one octave. Choose a number to lock a lower or higher octave instead."
+                      : "Octave stays locked, so the thumb no longer changes it. Learning a song still follows the thumb."}
                   </p>
                 </div>
               </>

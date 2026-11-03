@@ -98,6 +98,37 @@ const DEGREES: Degree[] = ["I", "II", "III", "IV", "V", "VI", "VII"]
 const QUALITIES: Quality[] = [1, 2, 3, 4]
 const MODES: Mode[] = ["major", "minor"]
 
+/** True when Gesture Synth can learn at least one chord. Same rule as community. */
+export function hasPlayableChords(raw: unknown, fallbackKey = "C"): boolean {
+  if (!raw || typeof raw !== "object") return false
+  const value = raw as {
+    version?: number
+    keyName?: string
+    steps?: SongStep[]
+    notes?: { start?: unknown; midi?: unknown }[]
+  }
+
+  if (value.version === 1 && Array.isArray(value.steps)) {
+    return value.steps.some((step) => Boolean(step?.degree) && !step.rest)
+  }
+
+  if (value.version !== 2 || !Array.isArray(value.notes)) return false
+  const keyName = value.keyName || fallbackKey
+  const byStart = new Map<number, number[]>()
+  for (const note of value.notes) {
+    const start = Number(note?.start)
+    const midi = Number(note?.midi)
+    if (!Number.isFinite(start) || !Number.isFinite(midi)) continue
+    const bucket = byStart.get(Math.round(start)) ?? []
+    bucket.push(Math.round(midi))
+    byStart.set(Math.round(start), bucket)
+  }
+  for (const midis of byStart.values()) {
+    if (matchGestureFromMidis(midis, keyName)) return true
+  }
+  return false
+}
+
 /** Best-effort reverse map from a MIDI chord set → gesture target. */
 export function matchGestureFromMidis(
   midis: number[],

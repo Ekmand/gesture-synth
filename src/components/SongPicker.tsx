@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react"
 import {
   listArrangements,
   type ArrangementListItem,
+  type ArrangementSort,
 } from "../lib/fetchArrangement"
-import { COMMUNITY_BUILDER } from "../lib/siteLinks"
+import { COMMUNITY_BUILDER, communityBuilderHref } from "../lib/siteLinks"
 import { isSupabaseConfigured } from "../lib/supabase"
 import styles from "./SongPicker.module.css"
 
@@ -13,10 +14,19 @@ type Props = {
   onSelect: (id: string) => void
 }
 
-const PAGE_SIZE = 16 // 4×4 grid
-
 function formatTag(tag: string) {
   return `#${tag}`
+}
+
+function formatPlays(count: number) {
+  return `${count} ${count === 1 ? "play" : "plays"}`
+}
+
+function authorOf(item: ArrangementListItem) {
+  return (
+    item.profiles?.display_name
+    || (item.profiles?.username ? `@${item.profiles.username}` : "Community")
+  )
 }
 
 export function SongPicker({ open, onClose, onSelect }: Props) {
@@ -24,22 +34,36 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
+  const [sort, setSort] = useState<ArrangementSort>("played")
+  const [draft, setDraft] = useState("")
+  const [query, setQuery] = useState("")
+
+  useEffect(() => {
+    if (open) return
+    setSort("played")
+    setActiveTag(null)
+    setDraft("")
+    setQuery("")
+  }, [open])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setQuery(draft.trim()), 300)
+    return () => window.clearTimeout(id)
+  }, [draft])
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    setActiveTag(null)
-    setPage(0)
+    setItems([])
 
     void (async () => {
       try {
         if (!isSupabaseConfigured()) {
           throw new Error("Supabase is not configured.")
         }
-        const rows = await listArrangements()
+        const rows = await listArrangements(48, sort, query)
         if (!cancelled) setItems(rows)
       } catch (err) {
         if (!cancelled) {
@@ -54,7 +78,7 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, sort, query])
 
   useEffect(() => {
     if (!open) return
@@ -74,7 +98,8 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([tag, count]) => ({ tag, count }))
+      .slice(0, 12)
+      .map(([tag]) => tag)
   }, [items])
 
   const filtered = useMemo(() => {
@@ -82,17 +107,9 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
     return items.filter((item) => item.tags.includes(activeTag))
   }, [items, activeTag])
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, pageCount - 1)
-  const pageItems = filtered.slice(
-    safePage * PAGE_SIZE,
-    safePage * PAGE_SIZE + PAGE_SIZE,
-  )
-
-  const selectTag = (tag: string | null) => {
-    setActiveTag(tag)
-    setPage(0)
-  }
+  const showFeatured = sort === "played" && !activeTag && !query && filtered.length > 1
+  const featured = showFeatured ? filtered.slice(0, 3) : []
+  const rest = showFeatured ? filtered.slice(3) : filtered
 
   if (!open) return null
 
@@ -106,126 +123,175 @@ export function SongPicker({ open, onClose, onSelect }: Props) {
       />
       <div className={styles.modal} role="dialog" aria-label="Learn a song">
         <header className={styles.header}>
-          <h2 className={styles.title}>Learn a song</h2>
+          <div>
+            <h2 className={styles.title}>Learn a song</h2>
+            <p className={styles.subtitle}>
+              {query
+                ? `Songs matching “${query}”`
+                : sort === "played"
+                  ? "Songs people open most on Gesture Synth"
+                  : "Newest public songs"}
+            </p>
+          </div>
           <button type="button" className={styles.close} onClick={onClose}>
             Close
           </button>
         </header>
 
-        <a
-          className={styles.createLink}
-          href={COMMUNITY_BUILDER}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span className={styles.createTitle}>Create or share a song</span>
-          <span className={styles.createMeta}>
-            Open the community builder to arrange and publish your own
-          </span>
-        </a>
+        <div className={styles.searchWrap}>
+          <input
+            className={styles.search}
+            value={draft}
+            placeholder="Search songs"
+            aria-label="Search songs"
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+          />
+        </div>
 
-        {loading && <p className={styles.status}>Loading songs…</p>}
-        {!loading && error && (
-          <p className={`${styles.status} ${styles.error}`}>{error}</p>
-        )}
-        {!loading && !error && items.length === 0 && (
-          <p className={styles.status}>No public songs yet.</p>
-        )}
-        {!loading && !error && items.length > 0 && (
-          <>
-            {tagChips.length > 0 && (
-              <div className={styles.chips} role="toolbar" aria-label="Filter by tag">
-                <button
-                  type="button"
-                  className={styles.chip}
-                  data-active={activeTag === null}
-                  onClick={() => selectTag(null)}
-                >
-                  All
-                  <span className={styles.chipCount}>{items.length}</span>
-                </button>
-                {tagChips.map(({ tag, count }) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={styles.chip}
-                    data-active={activeTag === tag}
-                    onClick={() => selectTag(activeTag === tag ? null : tag)}
-                  >
-                    {formatTag(tag)}
-                    <span className={styles.chipCount}>{count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className={styles.toolbar}>
+          <div className={styles.sort} role="group" aria-label="Sort songs">
+            <button
+              type="button"
+              className={styles.sortBtn}
+              data-active={sort === "played"}
+              onClick={() => setSort("played")}
+            >
+              Most played
+            </button>
+            <button
+              type="button"
+              className={styles.sortBtn}
+              data-active={sort === "recent"}
+              onClick={() => setSort("recent")}
+            >
+              Newest
+            </button>
+          </div>
+          <a
+            className={styles.share}
+            href={COMMUNITY_BUILDER}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Share a song
+          </a>
+        </div>
 
-            {filtered.length === 0 ? (
-              <p className={styles.status}>No songs with {formatTag(activeTag!)}.</p>
-            ) : (
-              <>
-                <div className={styles.grid}>
-                  {pageItems.map((item) => {
-                    const author =
-                      item.profiles?.display_name
-                      || (item.profiles?.username
-                        ? `@${item.profiles.username}`
-                        : "Community")
-                    return (
-                      <button
+        {tagChips.length > 0 && (
+          <div className={styles.chips} role="toolbar" aria-label="Filter by tag">
+            <button
+              type="button"
+              className={styles.chip}
+              data-active={activeTag === null}
+              onClick={() => setActiveTag(null)}
+            >
+              All
+            </button>
+            {tagChips.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className={styles.chip}
+                data-active={activeTag === tag}
+                onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+              >
+                {formatTag(tag)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className={styles.body}>
+          {loading && <p className={styles.status}>Loading songs…</p>}
+          {!loading && error && (
+            <p className={`${styles.status} ${styles.error}`}>{error}</p>
+          )}
+          {!loading && !error && items.length === 0 && !query && (
+            <p className={styles.status}>No public songs yet.</p>
+          )}
+          {!loading && !error && items.length === 0 && query && (
+            <div className={styles.empty}>
+              <p className={styles.status}>No playable songs match “{query}”.</p>
+              <a
+                className={styles.add}
+                href={communityBuilderHref(query)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Add this song
+              </a>
+            </div>
+          )}
+          {!loading && !error && items.length > 0 && filtered.length === 0 && (
+            <p className={styles.status}>No songs with {formatTag(activeTag!)}.</p>
+          )}
+          {!loading && !error && filtered.length > 0 && (
+            <>
+              {featured.length > 0 && (
+                <section className={styles.section} aria-label="Most played">
+                  <h3 className={styles.sectionLabel}>Most played</h3>
+                  <div className={styles.featured}>
+                    {featured.map((item, index) => (
+                      <SongCard
                         key={item.id}
-                        type="button"
-                        className={styles.card}
-                        onClick={() => onSelect(item.id)}
-                      >
-                        <span className={styles.cardTitle}>{item.title}</span>
-                        <span className={styles.cardMeta}>
-                          {item.key_name} {item.mode} · {item.bpm} BPM
-                        </span>
-                        <span className={styles.cardAuthor}>{author}</span>
-                        {item.tags.length > 0 && (
-                          <span className={styles.cardTags}>
-                            {item.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className={styles.cardTag}>
-                                {formatTag(tag)}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {pageCount > 1 && (
-                  <div className={styles.pager}>
-                    <button
-                      type="button"
-                      className={styles.pageBtn}
-                      disabled={safePage <= 0}
-                      onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    >
-                      Prev
-                    </button>
-                    <span className={styles.pageLabel}>
-                      {safePage + 1} / {pageCount}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.pageBtn}
-                      disabled={safePage >= pageCount - 1}
-                      onClick={() =>
-                        setPage((p) => Math.min(pageCount - 1, p + 1))
-                      }
-                    >
-                      Next
-                    </button>
+                        item={item}
+                        rank={index + 1}
+                        featured
+                        onSelect={onSelect}
+                      />
+                    ))}
                   </div>
-                )}
-              </>
-            )}
-          </>
-        )}
+                </section>
+              )}
+              {rest.length > 0 && (
+                <section className={styles.section} aria-label="Songs">
+                  {featured.length > 0 && (
+                    <h3 className={styles.sectionLabel}>More songs</h3>
+                  )}
+                  <div className={styles.list}>
+                    {rest.map((item) => (
+                      <SongCard key={item.id} item={item} onSelect={onSelect} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </>
+  )
+}
+
+function SongCard({
+  item,
+  rank,
+  featured = false,
+  onSelect,
+}: {
+  item: ArrangementListItem
+  rank?: number
+  featured?: boolean
+  onSelect: (id: string) => void
+}) {
+  const artist = item.original_artist.trim()
+  return (
+    <button
+      type="button"
+      className={featured ? styles.feature : styles.row}
+      onClick={() => onSelect(item.id)}
+    >
+      {rank != null && <span className={styles.rank}>{rank}</span>}
+      <span className={styles.copy}>
+        <span className={styles.cardTitle}>{item.title}</span>
+        <span className={styles.cardMeta}>
+          {item.key_name} {item.mode} · {item.bpm} BPM
+          {artist ? ` · ${artist}` : ""}
+        </span>
+        <span className={styles.cardAuthor}>{authorOf(item)}</span>
+      </span>
+      <span className={styles.plays}>{formatPlays(item.play_count)}</span>
+    </button>
   )
 }

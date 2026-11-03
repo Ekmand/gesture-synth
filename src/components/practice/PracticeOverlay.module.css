@@ -10,12 +10,7 @@
     max(0.75rem, env(safe-area-inset-right))
     max(0.75rem, env(safe-area-inset-bottom))
     max(0.75rem, env(safe-area-inset-left));
-  background: linear-gradient(
-    180deg,
-    rgba(11, 16, 20, 0.15) 0%,
-    rgba(11, 16, 20, 0.55) 45%,
-    rgba(11, 16, 20, 0.82) 100%
-  );
+  background: transparent;
 }
 
 .panel {

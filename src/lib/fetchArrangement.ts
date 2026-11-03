@@ -9,6 +9,7 @@ import {
   applyArrangementListOverrides,
   applyArrangementOverride,
 } from "./songOverrides"
+import { hasPlayableChords } from "./gestureMidi"
 import { getSupabase } from "./supabase"
 
 function isMode(value: unknown): value is Mode {
@@ -63,13 +64,18 @@ function normalizeArrangement(
   return null
 }
 
+export type ArrangementSort = "played" | "recent"
+
 export type ArrangementListItem = {
   id: string
   title: string
   description: string
+  original_artist: string
   key_name: string
   mode: Mode
   bpm: number
+  /** Opens recorded on the community arrangement (`play_count`). */
+  play_count: number
   /** Community hashtags (e.g. learn, official, artist names). */
   tags: string[]
   profiles: ArrangementRow["profiles"]
@@ -86,33 +92,65 @@ function normalizeTags(raw: unknown): string[] {
   return out
 }
 
-export async function listArrangements(limit = 96): Promise<ArrangementListItem[]> {
+/** PostgREST `or` filters split on commas, so those characters cannot stay in the term. */
+function searchTerm(raw: string) {
+  return raw.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim()
+}
+
+export async function listArrangements(
+  limit = 48,
+  sort: ArrangementSort = "played",
+  queryText = "",
+): Promise<ArrangementListItem[]> {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error("Supabase is not configured (set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)")
   }
 
-  const { data, error } = await supabase
-    .from("arrangements")
-    .select(
-      `
+  const term = searchTerm(queryText)
+  const pattern = `%${term}%`
+  const select = `
       id,
       title,
       description,
+      original_artist,
       key_name,
       mode,
       bpm,
+      play_count,
       tags,
+      arrangement,
       profiles:user_id ( username, display_name )
-    `,
-    )
-    .eq("is_public", true)
-    .order("created_at", { ascending: false })
-    .limit(limit)
+    `
+
+  const run = (includeArtist: boolean) => {
+    let query = supabase.from("arrangements").select(select).eq("is_public", true)
+    if (term) {
+      query = includeArtist
+        ? query.or(
+            `title.ilike.${pattern},description.ilike.${pattern},original_artist.ilike.${pattern}`,
+          )
+        : query.or(`title.ilike.${pattern},description.ilike.${pattern}`)
+    }
+    query = sort === "recent"
+      ? query.order("created_at", { ascending: false })
+      : query
+          .order("play_count", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
+    return query.limit(Math.max(limit, 120))
+  }
+
+  let { data, error } = await run(true)
+  if (error && term) {
+    const fallback = await run(false)
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) throw new Error(error.message)
 
-  const items = (data ?? []).map((row) => {
+  const items = (data ?? []).flatMap((row) => {
+    if (!hasPlayableChords(row.arrangement, (row.key_name as string) || "C")) return []
     const profilesRaw = row.profiles as
       | { username: string | null; display_name: string | null }
       | { username: string | null; display_name: string | null }[]
@@ -125,11 +163,13 @@ export async function listArrangements(limit = 96): Promise<ArrangementListItem[
       key_name: row.key_name as string,
       mode: isMode(row.mode) ? row.mode : "major",
       bpm: row.bpm as number,
+      original_artist: typeof row.original_artist === "string" ? row.original_artist : "",
+      play_count: typeof row.play_count === "number" ? row.play_count : 0,
       tags: normalizeTags(row.tags),
       profiles,
     }
   })
-  return applyArrangementListOverrides(items)
+  return applyArrangementListOverrides(items).slice(0, limit)
 }
 
 export async function fetchArrangement(id: string): Promise<ArrangementRow | null> {

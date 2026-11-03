@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Analytics } from "@vercel/analytics/react"
 import { LoopEngine, type LoopState, type TrackInfo } from "./audio/LoopEngine"
 import { MicInput } from "./audio/MicInput"
 import { SynthEngine } from "./audio/SynthEngine"
@@ -45,6 +46,7 @@ import {
 import {
   loadGestureSettings,
   normalizeChordCase,
+  resolveOctaveShift,
   saveGestureSettings,
   type GestureSettings,
 } from "./music/gestureSettings"
@@ -69,12 +71,15 @@ type LiveState = {
   quality: string
   qualityIndex: number
   pitchHz: number
+  /** Right thumb extended. Practice matching uses this, not the locked octave. */
   octaveDown: boolean
+  octaveShift: number
   freqs: number[]
 }
 
 const idleLive: LiveState = {
-  volume: 0, tone: 0, tonePct: 0, chord: null, quality: "--", qualityIndex: 0, pitchHz: 0, octaveDown: false, freqs: [],
+  volume: 0, tone: 0, tonePct: 0, chord: null, quality: "--", qualityIndex: 0, pitchHz: 0,
+  octaveDown: false, octaveShift: 0, freqs: [],
 }
 
 const EMPTY_TRACKS: TrackInfo[] = Array.from({ length: 4 }, () => ({
@@ -307,7 +312,7 @@ export default function App() {
     const publish = (next: LiveState) => {
       liveFrameRef.current = next
       const key = [next.chord, next.quality, next.qualityIndex, next.tonePct,
-        Math.round(next.volume * 16), Math.round(next.pitchHz)].join("|")
+        next.octaveShift, Math.round(next.volume * 16), Math.round(next.pitchHz)].join("|")
       if (key === lastUi) return
       lastUi = key
       setLive(next)
@@ -344,7 +349,8 @@ export default function App() {
         const qualityIndex = !practice && settings.qualityControl === "fixed"
           ? settings.fixedQuality : (stable?.qualityIndex ?? 0)
         const thumbDown = stable?.thumbDown ?? false
-        const quality = qualityLabel(qualityIndex, isMajor, thumbDown)
+        const octaveShift = resolveOctaveShift(settings, thumbDown, practice)
+        const quality = qualityLabel(qualityIndex, isMajor, octaveShift)
 
         let volume = 0, tone = 0
         let playedFreqs: number[] = []
@@ -361,7 +367,7 @@ export default function App() {
               if (allowed) {
                 let notes = notesForQuality(
                   chordTonesFromRoman(chord, isMajor, keyHz), qualityIndex, isMajor)
-                if (thumbDown) notes = notes.map((n) => n / 2)
+                if (octaveShift !== 0) notes = notes.map((n) => n * 2 ** octaveShift)
                 playedFreqs = notes
                 synth.playNotes(notes)
                 synth.setVolume(volume)
@@ -392,7 +398,7 @@ export default function App() {
         publish({
           volume: right ? volume : 0, tone,
           tonePct: Math.round(tone * 100), chord, quality, qualityIndex, pitchHz: 0,
-          octaveDown: thumbDown, freqs: playedFreqs,
+          octaveDown: thumbDown, octaveShift, freqs: playedFreqs,
         })
       } else {
         const pitchHz = right ? pitchFromHandY(right) : 0
@@ -420,7 +426,7 @@ export default function App() {
 
         publish({
           volume, tone: 0, tonePct: 0, chord: null, quality: "--",
-          qualityIndex: right && left ? 2 : 0, pitchHz, octaveDown: false,
+          qualityIndex: right && left ? 2 : 0, pitchHz, octaveDown: false, octaveShift: 0,
           freqs: thereminActive ? [pitchHz] : [],
         })
       }
@@ -761,6 +767,7 @@ export default function App() {
       <HandCanvas
         videoRef={videoRef} getResult={getResult}
         getWaveParams={getWaveParams} dimmed={!audioOn}
+        vignette={!practiceOpen}
       />
 
       <Hud
@@ -778,7 +785,7 @@ export default function App() {
         volume={live.volume} tonePct={live.tonePct}
         chord={live.chord} quality={live.quality}
         pitchHz={live.pitchHz}
-        octaveDown={live.octaveDown}
+        octaveShift={live.octaveShift}
         onHelp={() => setTutorialOpen(true)}
         onLearnSong={() => setSongPickerOpen(true)}
         statusText={statusText} audioOn={audioOn}
@@ -888,6 +895,7 @@ export default function App() {
       )}
 
       <Tutorial open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <Analytics />
     </div>
   )
 }
