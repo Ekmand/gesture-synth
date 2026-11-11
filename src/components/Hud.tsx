@@ -10,12 +10,15 @@ import {
   type ModeControl,
   type QualityControl,
 } from "../music/gestureSettings"
+import { SAW_VOICES, type SawVoiceId } from "../audio/sawVoices"
+import type { RecordingPrefs } from "../lib/recordingPrefs"
 import {
   COMMUNITY_HOME,
   ETHAN,
   ERIC,
   GITHUB_CONTRIBUTORS,
   GITHUB_REPO,
+  SUPPORT,
   activeSocialLinks,
 } from "../lib/siteLinks"
 import styles from "./Hud.module.css"
@@ -29,6 +32,8 @@ type Props = {
   onKeyChange: (hz: number) => void
   gestureSettings: GestureSettings
   onGestureSettingsChange: (next: GestureSettings) => void
+  sawVoice: SawVoiceId
+  onSawVoiceChange: (id: SawVoiceId) => void
   sequencerVisible: boolean
   onSequencerVisibleChange: (visible: boolean) => void
   volume: number
@@ -41,6 +46,8 @@ type Props = {
   onLearnSong: () => void
   statusText: string
   audioOn: boolean
+  recordingPrefs: RecordingPrefs
+  onRecordingPrefsChange: (next: RecordingPrefs) => void
 }
 
 const BARS = 8
@@ -52,6 +59,8 @@ export function Hud({
   onKeyChange,
   gestureSettings,
   onGestureSettingsChange,
+  sawVoice,
+  onSawVoiceChange,
   sequencerVisible,
   onSequencerVisibleChange,
   volume,
@@ -64,8 +73,11 @@ export function Hud({
   onLearnSong,
   statusText,
   audioOn,
+  recordingPrefs,
+  onRecordingPrefsChange,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [mics, setMics] = useState<{ id: string; label: string }[]>([])
   const litCount = Math.round(volume * BARS)
   const { modeControl, fixedMode, qualityControl, fixedQuality, octaveControl, fixedOctave } =
     gestureSettings
@@ -90,12 +102,27 @@ export function Hud({
       if (e.key === "Escape") setSettingsOpen(false)
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    let cancel = false
+    void navigator.mediaDevices?.enumerateDevices().then((list) => {
+      if (cancel) return
+      setMics(
+        list
+          .filter((device) => device.kind === "audioinput" && device.deviceId && device.deviceId !== "default" && device.deviceId !== "communications")
+          .map((device, index) => ({
+            id: device.deviceId,
+            label: device.label || `Microphone ${index + 1}`,
+          })),
+      )
+    }).catch(() => {})
+    return () => {
+      cancel = true
+      window.removeEventListener("keydown", onKey)
+    }
   }, [settingsOpen])
 
   return (
     <div className={styles.hud}>
-      <div className={styles.topLeft}>
+      <div className={styles.topLeft} data-app-header>
         <h1 className={styles.brand}>Gesture Synth</h1>
         <div className={styles.row}>
           <div className={styles.panel} role="group" aria-label="Instrument mode">
@@ -142,7 +169,7 @@ export function Hud({
         </div>
       </div>
 
-      <div className={styles.topRight}>
+      <div className={styles.topRight} data-app-meter>
         <div className={styles.meter} aria-label="Volume meter">
           {Array.from({ length: BARS }, (_, i) => (
             <div key={i} className={styles.bar} data-lit={i >= BARS - litCount} />
@@ -191,6 +218,7 @@ export function Hud({
       </div>
 
       <div className={styles.cornerLinks}>
+        <SupportChip />
         <a
           className={styles.github}
           href={GITHUB_REPO}
@@ -257,6 +285,22 @@ export function Hud({
 
             {mode === "gesture" && (
               <>
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>Sound</span>
+                  <select
+                    className={styles.selectSm}
+                    value={sawVoice}
+                    onChange={(e) => onSawVoiceChange(e.target.value as SawVoiceId)}
+                    aria-label="Saw sound"
+                  >
+                    {SAW_VOICES.map((voice) => (
+                      <option key={voice.id} value={voice.id}>{voice.label}</option>
+                    ))}
+                  </select>
+                  <p className={styles.configHint}>
+                    {SAW_VOICES.find((voice) => voice.id === sawVoice)?.hint}
+                  </p>
+                </div>
                 <div className={styles.configRow}>
                   <span className={styles.configLabel}>Left hand</span>
                   <select
@@ -367,6 +411,43 @@ export function Hud({
             )}
 
             <div className={styles.configRow}>
+              <span className={styles.configLabel}>Recording</span>
+              <select
+                className={styles.selectSm}
+                value={recordingPrefs.micId}
+                onChange={(e) => onRecordingPrefsChange({ ...recordingPrefs, micId: e.target.value })}
+                aria-label="Recording microphone"
+              >
+                <option value="default">Default microphone</option>
+                <option value="none">No microphone</option>
+                {mics.map((mic) => (
+                  <option key={mic.id} value={mic.id}>{mic.label}</option>
+                ))}
+              </select>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={recordingPrefs.monitor}
+                  onChange={(e) => onRecordingPrefsChange({ ...recordingPrefs, monitor: e.target.checked })}
+                />
+                <span>Mic monitor</span>
+              </label>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={recordingPrefs.clean}
+                  onChange={(e) => onRecordingPrefsChange({ ...recordingPrefs, clean: e.target.checked })}
+                />
+                <span>Clean recording</span>
+              </label>
+              <p className={styles.configHint}>
+                {recordingPrefs.monitor
+                  ? "You will hear your voice. Use headphones so the mic does not pick the speakers back up."
+                  : "Clean recording saves the camera without the chord and scale notes. Mic monitor is for headphones."}
+              </p>
+            </div>
+
+            <div className={styles.configRow}>
               <span className={styles.configLabel}>Sequencer</span>
               <label className={styles.toggleRow}>
                 <input
@@ -400,6 +481,13 @@ export function Hud({
                   GitHub contributors
                 </a>
               </p>
+              <p className={styles.aboutLine}>
+                <a href={SUPPORT.href} target="_blank" rel="noopener noreferrer">
+                  {SUPPORT.label}
+                </a>
+                {" "}
+                helps cover hosting, about $50–$70 a month.
+              </p>
 
               {socials.length > 0 && (
                 <div className={styles.socialBlock}>
@@ -423,6 +511,47 @@ export function Hud({
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function SupportChip() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div
+      className={styles.supportWrap}
+      data-open={open}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <a
+        className={styles.support}
+        href={SUPPORT.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => {
+          if (window.matchMedia("(hover: hover)").matches) return
+          event.preventDefault()
+          setOpen((value) => !value)
+        }}
+      >
+        {SUPPORT.label}
+      </a>
+      <div className={styles.supportCard}>
+        <p className={styles.supportTitle}>{SUPPORT.label}</p>
+        <p className={styles.supportCopy}>
+          It costs about $50–$70 a month to run. Tips on Ko-fi go straight to keeping the servers on.
+        </p>
+        <a
+          className={styles.supportCta}
+          href={SUPPORT.href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Tip on Ko-fi
+        </a>
+      </div>
     </div>
   )
 }

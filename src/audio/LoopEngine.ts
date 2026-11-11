@@ -1,3 +1,5 @@
+import { filterForTilt, sawVoiceById, type SawVoice, type SawVoiceId } from "./sawVoices"
+
 export type LoopState = "idle" | "countIn" | "recording"
 
 export type LoopFrame = {
@@ -44,6 +46,7 @@ class LoopTrack {
   private ctx: AudioContext
   private bufferSource: AudioBufferSourceNode | null = null
   private trackGain: GainNode
+  private voice: SawVoice = sawVoiceById("classic")
 
   constructor(ctx: AudioContext, outputBus: GainNode) {
     this.ctx = ctx
@@ -58,6 +61,10 @@ class LoopTrack {
     this.stepChords = new Array(totalSteps).fill(null)
     this.stepHasAudio = new Array(totalSteps).fill(false)
     this.hasContent = false
+  }
+
+  setSawVoice(id: SawVoiceId) {
+    this.voice = sawVoiceById(id)
   }
 
   updateGain(effectivelyMuted: boolean) {
@@ -96,12 +103,12 @@ class LoopTrack {
 
     // Recreate audio chain in offline context
     const ws = offline.createWaveShaper()
-    ws.curve = null
+    ws.curve = this.voice.curve
     ws.oversample = "4x"
     const filt = offline.createBiquadFilter()
     filt.type = "lowpass"
-    filt.frequency.value = 1200
-    filt.Q.value = 0.7
+    filt.frequency.value = this.voice.filterBase
+    filt.Q.value = this.voice.filterQ
     ws.connect(filt)
     filt.connect(offline.destination)
 
@@ -146,33 +153,29 @@ class LoopTrack {
       const { frame } = run
 
       // Filter — interpolate across the run using first frame's values
-      let freq = 1200, q = 0.7
-      if (frame.filterTilt < 0) {
-        const r = Math.abs(frame.filterTilt)
-        freq = 1200 - r * 950
-        q = 0.7 + r * 1.5
-      } else if (frame.filterTilt > 0) {
-        freq = 1200 + frame.filterTilt * 3800
-        q = 0.7 + frame.filterTilt * 4.5
-      }
-      filt.frequency.setValueAtTime(freq, startSec)
-      filt.Q.setValueAtTime(q, startSec)
+      const shaped = filterForTilt(frame.filterTilt, this.voice)
+      filt.frequency.setValueAtTime(shaped.freq, startSec)
+      filt.Q.setValueAtTime(shaped.q, startSec)
 
       if (frame.mode === "gesture" && frame.freqs.length > 0) {
         frame.freqs.forEach((hz) => {
-          const osc = offline.createOscillator()
-          osc.type = "sawtooth"
-          osc.frequency.value = hz
-          const g = offline.createGain()
-          // Smooth attack at run start, sustain through, release at run end
-          g.gain.setValueAtTime(0, startSec)
-          g.gain.linearRampToValueAtTime(frame.volume, startSec + ramp)
-          g.gain.setValueAtTime(frame.volume, endSec - ramp)
-          g.gain.linearRampToValueAtTime(0, endSec)
-          osc.connect(g)
-          g.connect(ws)
-          osc.start(startSec)
-          osc.stop(endSec + 0.01)
+          this.voice.partials.forEach((partial) => {
+            const osc = offline.createOscillator()
+            osc.type = "sawtooth"
+            osc.frequency.value = hz * partial.ratio
+            osc.detune.value = partial.detune
+            const g = offline.createGain()
+            const level = frame.volume * partial.gain
+            // Smooth attack at run start, sustain through, release at run end
+            g.gain.setValueAtTime(0, startSec)
+            g.gain.linearRampToValueAtTime(level, startSec + ramp)
+            g.gain.setValueAtTime(level, endSec - ramp)
+            g.gain.linearRampToValueAtTime(0, endSec)
+            osc.connect(g)
+            g.connect(ws)
+            osc.start(startSec)
+            osc.stop(endSec + 0.01)
+          })
         })
       } else if (frame.mode === "theremin" && frame.pitchHz > 0) {
         const osc = offline.createOscillator()
@@ -305,6 +308,10 @@ export class LoopEngine {
   private _didRestart = false
   private lastDisplayedStep = -1
   private rebuildTimer: ReturnType<typeof setTimeout> | null = null
+
+  setSawVoice(id: SawVoiceId) {
+    this.tracks.forEach((track) => track.setSawVoice(id))
+  }
 
   constructor(ctx: AudioContext, bus: GainNode) {
     this.ctx = ctx

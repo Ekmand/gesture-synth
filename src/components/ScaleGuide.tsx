@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react"
+import { publishHold } from "../recording/holdSync"
 import { activeRoman, scaleGuideForKey } from "../music/scale"
 import styles from "./ScaleGuide.module.css"
 
@@ -29,6 +30,7 @@ export function ScaleGuide({ keyHz, chord, visible, scaleOnly = false }: Props) 
     }
     if (!chord) {
       label.hidden = true
+      publishHold({ chord: null, progress: 0, seconds: 0 })
       clear()
       return
     }
@@ -48,11 +50,13 @@ export function ScaleGuide({ keyHz, chord, visible, scaleOnly = false }: Props) 
         else delete pad.dataset.held
       })
       label.textContent = `HOLDING ${seconds.toFixed(1)}s`
+      publishHold({ chord, progress, seconds })
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(raf)
+      publishHold({ chord: null, progress: 0, seconds: 0 })
       clear()
     }
   }, [chord, visible])

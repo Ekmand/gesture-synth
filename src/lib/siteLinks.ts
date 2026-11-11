@@ -10,6 +10,12 @@ export const ERIC = {
   href: "https://www.instagram.com/indecisive.eric",
 } as const
 
+/** One-time tips for server costs. Ko-fi pays out to PayPal or Stripe. */
+export const SUPPORT = {
+  label: "Support Gesture Synth",
+  href: "https://ko-fi.com/gesturesynth",
+} as const
+
 export const GITHUB_REPO = "https://github.com/Ekmand/music-synth"
 export const GITHUB_CONTRIBUTORS = `${GITHUB_REPO}/graphs/contributors`
 
@@ -32,7 +38,7 @@ export function communityBuilderHref(title?: string) {
 export const SOCIAL_LINKS = [
   { label: "Instagram", href: "https://www.instagram.com/gesturesynth/" },
   { label: "Discord", href: "https://discord.gg/ensg4kmUve" },
-  { label: "TikTok", href: "https://www.tiktok.com/@gesturesynth" },
+  { label: "TikTok", href: "https://www.tiktok.com/@gesturesynthofficial" },
   { label: "YouTube", href: "https://www.youtube.com/@gesturesynth" },
 ] as const
 

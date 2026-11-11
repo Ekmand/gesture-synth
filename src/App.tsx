@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Analytics } from "@vercel/analytics/react"
 import { LoopEngine, type LoopState, type TrackInfo } from "./audio/LoopEngine"
+import { loadSawVoice, saveSawVoice, type SawVoiceId } from "./audio/sawVoices"
 import { SynthEngine } from "./audio/SynthEngine"
 import { BeatGrid, CountInDisplay } from "./components/BeatGrid"
+import { GlobalRecorder } from "./components/GlobalRecorder"
 import { HandCanvas } from "./components/HandCanvas"
 import { Hud, type InstrumentMode } from "./components/Hud"
 import { LoopControls } from "./components/LoopControls"
@@ -19,6 +21,11 @@ import { fetchArrangement } from "./lib/fetchArrangement"
 import { keyNameToHz } from "./lib/keyHz"
 import { compareLive, isFullMatch } from "./lib/practiceMatch"
 import type { GestureTarget, PracticeSong } from "./lib/practiceTypes"
+import {
+  loadRecordingPrefs,
+  saveRecordingPrefs,
+  type RecordingPrefs,
+} from "./lib/recordingPrefs"
 import {
   loadSequencerVisible,
   saveSequencerVisible,
@@ -46,6 +53,8 @@ import {
   wristTilt,
   type StabilizedChord,
 } from "./music/gestures"
+import { readHold } from "./recording/holdSync"
+import type { PerformanceFrame } from "./recording/drawPerformance"
 import { useHandTracking } from "./vision/useHandTracking"
 import styles from "./App.module.css"
 
@@ -78,11 +87,13 @@ export default function App() {
   const { status, error, handsRef } = useHandTracking(videoRef)
 
   const [audioOn, setAudioOn] = useState(false)
+  const [recordingPrefs, setRecordingPrefs] = useState<RecordingPrefs>(loadRecordingPrefs)
   const [mode, setMode] = useState<InstrumentMode>("gesture")
   const [keyHz, setKeyHz] = useState(220)
   const [gestureSettings, setGestureSettings] = useState<GestureSettings>(() =>
     loadGestureSettings(),
   )
+  const [sawVoice, setSawVoice] = useState<SawVoiceId>(loadSawVoice)
   const settingsRef = useRef(gestureSettings)
   settingsRef.current = gestureSettings
 
@@ -188,6 +199,44 @@ export default function App() {
     }),
     [mode],
   )
+
+  const recordingPrefsRef = useRef(recordingPrefs)
+  recordingPrefsRef.current = recordingPrefs
+  const getRecordingAudio = useCallback(() => {
+    if (!audioOn) return null
+    const synth = synthRef.current
+    return { ctx: synth.getContext(), bus: synth.getOutputBus() }
+  }, [audioOn])
+  const getRecordingPrefs = useCallback(() => recordingPrefsRef.current, [])
+  const getRecordingFrame = useCallback((): PerformanceFrame => {
+    const frame = liveFrameRef.current
+    const hold = readHold()
+    const sameChord = hold.chord != null && hold.chord === frame.chord
+    return {
+      clean: recordingPrefsRef.current.clean,
+      showGuide: mode === "gesture" && !practiceOpen,
+      mode,
+      chord: frame.chord,
+      quality: frame.quality,
+      octaveShift: frame.octaveShift,
+      keyHz,
+      pitchHz: frame.pitchHz,
+      holdProgress: sameChord ? hold.progress : 0,
+      holdSeconds: sameChord ? hold.seconds : 0,
+    }
+  }, [keyHz, mode, practiceOpen])
+
+  const updateRecordingPrefs = (next: RecordingPrefs) => {
+    setRecordingPrefs(next)
+    saveRecordingPrefs(next)
+  }
+
+  const updateSawVoice = (id: SawVoiceId) => {
+    setSawVoice(id)
+    saveSawVoice(id)
+    synthRef.current.setVoice(id)
+    loopRef.current?.setSawVoice(id)
+  }
 
   const updateGestureSettings = (next: GestureSettings) => {
     setGestureSettings(next)
@@ -428,6 +477,8 @@ export default function App() {
     const ctx = synthRef.current.getContext()
     const bus = synthRef.current.getOutputBus()
     loopRef.current = new LoopEngine(ctx, bus)
+    synthRef.current.setVoice(sawVoice)
+    loopRef.current.setSawVoice(sawVoice)
     const bpm = practiceSong?.bpm ?? loopBpm
     loopRef.current.setGrid(bpm, loopBars)
     loopRef.current.setBeatsPerBar(loopBeatsPerBar)
@@ -677,6 +728,8 @@ export default function App() {
         keyHz={keyHz} onKeyChange={setKeyHz}
         gestureSettings={gestureSettings}
         onGestureSettingsChange={updateGestureSettings}
+        sawVoice={sawVoice}
+        onSawVoiceChange={updateSawVoice}
         sequencerVisible={sequencerVisible}
         onSequencerVisibleChange={handleSequencerVisibleChange}
         volume={live.volume} tonePct={live.tonePct}
@@ -686,6 +739,15 @@ export default function App() {
         onHelp={() => setTutorialOpen(true)}
         onLearnSong={() => setSongPickerOpen(true)}
         statusText={statusText} audioOn={audioOn}
+        recordingPrefs={recordingPrefs}
+        onRecordingPrefsChange={updateRecordingPrefs}
+      />
+
+      <GlobalRecorder
+        visible={audioOn}
+        getAudio={getRecordingAudio}
+        getPrefs={getRecordingPrefs}
+        getFrame={getRecordingFrame}
       />
 
       <ScaleGuide

@@ -1,135 +1,257 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { dismissVoiceHint, voiceHintDismissed, type RecordingPrefs } from "../lib/recordingPrefs"
+import { SessionRecorder } from "../recording/SessionRecorder"
+import type { PerformanceFrame } from "../recording/drawPerformance"
 import styles from "./GlobalRecorder.module.css"
 
 type Props = {
   visible: boolean
-  audioCtx: AudioContext | null
+  getAudio: () => { ctx: AudioContext; bus: AudioNode } | null
+  getPrefs: () => RecordingPrefs
+  getFrame: () => PerformanceFrame
 }
 
-export function GlobalRecorder({ visible, audioCtx }: Props) {
-  const [recording, setRecording] = useState(false)
+export function GlobalRecorder({ visible, getAudio, getPrefs, getFrame }: Props) {
+  const [phase, setPhase] = useState<"idle" | "hint" | "count" | "recording">("idle")
+  const [count, setCount] = useState(3)
   const [elapsed, setElapsed] = useState(0)
-  const recorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const [note, setNote] = useState<string | null>(null)
+  const [skipHint, setSkipHint] = useState(false)
+  const hintGoRef = useRef<HTMLButtonElement>(null)
+  const recorderRef = useRef<SessionRecorder | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const countRef = useRef(0)
   const startTimeRef = useRef(0)
-  const timerRef = useRef(0)
+  const getFrameRef = useRef(getFrame)
+  getFrameRef.current = getFrame
 
-  const startRecording = useCallback(async () => {
-    if (!audioCtx) return
-    try {
-      const tracks: MediaStreamTrack[] = []
-
-      // Video: capture the canvas (facecam + hand overlay)
-      const canvas = document.querySelector("canvas")
-      if (canvas) {
-        const videoStream = (canvas as HTMLCanvasElement).captureStream(30)
-        videoStream.getVideoTracks().forEach((t) => tracks.push(t))
-      }
-
-      // Audio: tap the AudioContext output
-      const audioDest = audioCtx.createMediaStreamDestination()
-      // Connect the destination node to capture all audio
-      // We need to find the master gain and connect it
-      // The audio context destination is the speaker — we tap before it
-      // Use a gain node to split the signal
-      const tap = audioCtx.createGain()
-      tap.gain.value = 1
-      // Connect all source nodes... simplest: connect destination's stream
-      // Actually, use createMediaStreamDestination and connect to it from a tap
-      // For now, capture whatever is going to the speakers via the context
-      audioDest.stream.getAudioTracks().forEach((t) => tracks.push(t))
-
-      // Tap speaker output when the browser exposes destination.stream
-      // @ts-expect-error - captureStream is non-standard but widely supported
-      if (audioCtx.destination.stream) {
-        // @ts-expect-error
-        const destStream = audioCtx.destination.stream as MediaStream
-        destStream.getAudioTracks().forEach((t) => tracks.push(t))
-      }
-
-      if (tracks.length === 0) return
-
-      const combined = new MediaStream(tracks)
-      const recorder = new MediaRecorder(combined, {
-        mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-          ? "video/webm;codecs=vp9,opus"
-          : "video/webm",
-      })
-
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      recorder.start(1000) // chunks every second
-      recorderRef.current = recorder
-      startTimeRef.current = Date.now()
-      setRecording(true)
-      setElapsed(0)
-    } catch {
-      /* recording not supported */
-    }
-  }, [audioCtx])
-
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     const recorder = recorderRef.current
-    if (!recorder || recorder.state === "inactive") return
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `gesture-synth-${new Date().toISOString().slice(0, 19)}.webm`
-      a.click()
-      URL.revokeObjectURL(url)
-    }
-    recorder.stop()
     recorderRef.current = null
-    setRecording(false)
+    setPhase("idle")
     setElapsed(0)
-    window.clearInterval(timerRef.current)
+    if (!recorder) return
+    const blob = await recorder.stop()
+    if (blob.size === 0) {
+      setNote("Recording produced no data")
+      return
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-")
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `gesture-synth-${stamp}.${recorder.extension()}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }, [])
 
-  // Update elapsed timer
+  const begin = useCallback(async () => {
+    const audio = getAudio()
+    if (!audio) {
+      setNote("Start audio before recording")
+      setPhase("idle")
+      return
+    }
+    const prefs = getPrefs()
+    const recorder = new SessionRecorder()
+    try {
+      await recorder.start({
+        audioCtx: audio.ctx,
+        bus: audio.bus,
+        micId: prefs.micId,
+        monitor: prefs.monitor,
+        getFrame: () => getFrameRef.current(),
+      })
+    } catch {
+      setNote("Recording isn't supported in this browser")
+      setPhase("idle")
+      return
+    }
+    recorderRef.current = recorder
+    startTimeRef.current = Date.now()
+    setElapsed(0)
+    setNote(null)
+    setPhase("recording")
+  }, [getAudio, getPrefs])
+
+  const arm = useCallback(() => {
+    window.clearInterval(countRef.current)
+    setNote(null)
+    setCount(3)
+    setPhase("count")
+    let left = 3
+    countRef.current = window.setInterval(() => {
+      left -= 1
+      if (left <= 0) {
+        window.clearInterval(countRef.current)
+        void begin()
+        return
+      }
+      setCount(left)
+    }, 1000)
+  }, [begin])
+
+  const requestRecord = useCallback(() => {
+    if (getPrefs().micId === "none" || voiceHintDismissed()) {
+      arm()
+      return
+    }
+    setSkipHint(false)
+    setPhase("hint")
+  }, [arm, getPrefs])
+
+  const closeHint = useCallback((record: boolean) => {
+    if (skipHint) dismissVoiceHint()
+    if (record) arm()
+    else setPhase("idle")
+  }, [arm, skipHint])
+
+  const cancelCount = useCallback(() => {
+    window.clearInterval(countRef.current)
+    setPhase("idle")
+  }, [])
+
   useEffect(() => {
-    if (!recording) return
-    timerRef.current = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000))
-    }, 500)
-    return () => window.clearInterval(timerRef.current)
-  }, [recording])
+    if (phase !== "recording") return
+    const id = window.setInterval(
+      () => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)),
+      500,
+    )
+    return () => window.clearInterval(id)
+  }, [phase])
+
+  useEffect(() => () => {
+    window.clearInterval(countRef.current)
+    void recorderRef.current?.stop()
+  }, [])
+
+  useEffect(() => {
+    if (!note) return
+    const id = window.setTimeout(() => setNote(null), 4000)
+    return () => window.clearTimeout(id)
+  }, [note])
+
+  useEffect(() => {
+    if (phase !== "hint") return
+    hintGoRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeHint(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [phase, closeHint])
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current
+    const header = document.querySelector("[data-app-header]")
+    if (!wrap || !header) return
+    const meter = document.querySelector("[data-app-meter]")
+    const hits = (a: DOMRect, b: DOMRect | undefined) =>
+      !!b && a.left < b.right + 8 && a.right > b.left - 8 && a.top < b.bottom + 8 && a.bottom > b.top - 8
+    const place = () => {
+      wrap.style.top = ""
+      const natural = wrap.getBoundingClientRect()
+      const head = header.getBoundingClientRect()
+      const side = meter?.getBoundingClientRect()
+      if (!hits(natural, head) && !hits(natural, side)) return
+      const floor = Math.max(head.bottom, side && natural.left < side.right && natural.right > side.left ? side.bottom : 0)
+      wrap.style.top = `${Math.round(floor + 12)}px`
+    }
+    const observer = new ResizeObserver(place)
+    observer.observe(header)
+    if (meter) observer.observe(meter)
+    window.addEventListener("resize", place)
+    place()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", place)
+    }
+  }, [visible, phase])
 
   if (!visible) return null
 
   const mins = Math.floor(elapsed / 60)
   const secs = elapsed % 60
+  const recording = phase === "recording"
 
   return (
-    <div className={styles.bar}>
-      <button
-        type="button"
-        className={styles.recBtn}
-        data-recording={recording}
-        onClick={recording ? stopRecording : startRecording}
-        aria-label={recording ? "Stop global recording" : "Start global recording"}
-      >
-        {recording ? (
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <rect x="2" y="2" width="6" height="6" fill="currentColor" />
-          </svg>
-        ) : (
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <circle cx="5" cy="5" r="4" fill="currentColor" />
-          </svg>
-        )}
-      </button>
-      {recording ? (
-        <span className={styles.timer}>
-          {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
-        </span>
-      ) : (
-        <span className={styles.label}>Record</span>
+    <>
+      {phase === "hint" && (
+        <div className={styles.hintBackdrop} onClick={() => closeHint(false)}>
+          <div
+            className={styles.hintCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voice-hint-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="voice-hint-title" className={styles.hintTitle}>Your voice may not come through clearly</h2>
+            <p className={styles.hintBody}>
+              This device’s microphone is mixed into the video. Singing often sounds thinner and quieter than it does in the room, especially with the synth playing nearby.
+            </p>
+            <p className={styles.hintBody}>
+              For a clearer vocal, use a headset, a separate microphone, or record your voice on a second phone.
+            </p>
+            <div className={styles.hintActions}>
+              <button
+                ref={hintGoRef}
+                type="button"
+                className={styles.hintGo}
+                onClick={() => closeHint(true)}
+              >
+                Record anyway
+              </button>
+              <button type="button" className={styles.hintStay} onClick={() => closeHint(false)}>
+                Not now
+              </button>
+            </div>
+            <label className={styles.hintCheck}>
+              <input
+                type="checkbox"
+                checked={skipHint}
+                onChange={(event) => setSkipHint(event.target.checked)}
+              />
+              Don’t show this again
+            </label>
+          </div>
+        </div>
       )}
-    </div>
+      {phase === "count" && (
+        <div className={styles.countdown} aria-live="polite">
+          <div className={styles.countDisc}>
+            <span className={styles.countNum}>{count}</span>
+          </div>
+          <p className={styles.countHint}>Tap Cancel to stop</p>
+        </div>
+      )}
+      <div className={styles.wrap} ref={wrapRef}>
+        <button
+          type="button"
+          className={styles.chip}
+          data-recording={recording}
+          data-counting={phase === "count"}
+          onClick={() => {
+            if (phase === "count") cancelCount()
+            else if (recording) void stopRecording()
+            else requestRecord()
+          }}
+          aria-label={recording ? "Stop recording" : phase === "count" ? "Cancel recording" : "Record video"}
+        >
+          <span className={styles.mark}>
+            <span className={styles.dot} />
+          </span>
+          <span className={styles.caption}>
+            {recording
+              ? `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+              : phase === "count"
+                ? "Cancel"
+                : "Record"}
+          </span>
+        </button>
+        {note && <p className={styles.note}>{note}</p>}
+      </div>
+    </>
   )
 }

@@ -1,10 +1,17 @@
+import { filterForTilt, sawVoiceById, type SawVoice, type SawVoiceId } from "./sawVoices"
+
+type ChordVoice = { osc: OscillatorNode; gain: GainNode }
+
 export class SynthEngine {
   private ctx: AudioContext | null = null
   private filter: BiquadFilterNode | null = null
   private waveShaper: WaveShaperNode | null = null
   private masterGain: GainNode | null = null
-  private oscillators: OscillatorNode[] = []
+  private chordVoices: ChordVoice[] = []
   private currentKey: string | null = null
+  private voice: SawVoice = sawVoiceById("classic")
+  private lastFreqs: number[] = []
+  private lastTilt = 0
   private thereminOsc: OscillatorNode | null = null
   private thereminGain: GainNode | null = null
   private mode: "gesture" | "theremin" = "gesture"
@@ -53,6 +60,7 @@ export class SynthEngine {
       this.waveShaper.connect(this.filter)
       this.filter.connect(this.masterGain)
       this.masterGain.connect(this.bus)
+      this.applyVoice()
 
       const ctx = this.ctx
       const audio = this.bgAudio
@@ -86,6 +94,18 @@ export class SynthEngine {
     return this.bus!
   }
 
+  setVoice(id: SawVoiceId) {
+    this.voice = sawVoiceById(id)
+    this.applyVoice()
+    if (!this.currentKey || this.lastFreqs.length === 0) return
+    this.currentKey = null
+    this.playNotes(this.lastFreqs)
+  }
+
+  getVoice(): SawVoiceId {
+    return this.voice.id
+  }
+
   setMode(mode: "gesture" | "theremin") {
     if (this.mode === mode) return
     this.stopAll()
@@ -99,17 +119,9 @@ export class SynthEngine {
   }
 
   updateFilterSweep(tilt: number) {
+    this.lastTilt = tilt
     if (!this.filter || !this.ctx) return
-    let freq = 1200
-    let q = 0.7
-    if (tilt < 0) {
-      const r = Math.abs(tilt)
-      freq = 1200 - r * 950
-      q = 0.7 + r * 1.5
-    } else if (tilt > 0) {
-      freq = 1200 + tilt * 3800
-      q = 0.7 + tilt * 4.5
-    }
+    const { freq, q } = filterForTilt(tilt, this.voice)
     const now = this.ctx.currentTime
     this.filter.frequency.setTargetAtTime(freq, now, 0.04)
     this.filter.Q.setTargetAtTime(q, now, 0.04)
@@ -119,20 +131,28 @@ export class SynthEngine {
     this.ensureContext()
     if (!this.ctx || !this.waveShaper || freqs.length === 0) return
     this.stopTheremin()
-    const key = freqs.map((f) => f.toFixed(1)).join(",")
+    this.lastFreqs = freqs
+    const key = `${this.voice.id}|${freqs.map((f) => f.toFixed(1)).join(",")}`
     if (key === this.currentKey) return
-    this.oscillators.forEach((o) => {
-      try { o.stop() } catch { /* already stopped */ }
-    })
-    this.oscillators = freqs.map((hz) => {
+    this.stopChordOscillators()
+    this.chordVoices = freqs.flatMap((hz) => this.voice.partials.map((partial) => {
       const osc = this.ctx!.createOscillator()
+      const gain = this.ctx!.createGain()
       osc.type = "sawtooth"
-      osc.frequency.value = hz
-      osc.connect(this.waveShaper!)
+      osc.frequency.value = hz * partial.ratio
+      osc.detune.value = partial.detune
+      gain.gain.value = partial.gain
+      osc.connect(gain)
+      gain.connect(this.waveShaper!)
       osc.start()
-      return osc
-    })
+      return { osc, gain }
+    }))
     this.currentKey = key
+  }
+
+  private applyVoice() {
+    if (this.waveShaper) this.waveShaper.curve = this.voice.curve
+    this.updateFilterSweep(this.lastTilt)
   }
 
   playTheremin(freq: number, volume: number) {
@@ -145,7 +165,7 @@ export class SynthEngine {
       this.thereminOsc = this.ctx.createOscillator()
       this.thereminOsc.type = "sine"
       this.thereminOsc.connect(this.thereminGain)
-      this.thereminGain.connect(this.waveShaper)
+      this.thereminGain.connect(this.filter!)
       this.thereminOsc.start()
     }
     const now = this.ctx.currentTime
@@ -161,10 +181,12 @@ export class SynthEngine {
   }
 
   private stopChordOscillators() {
-    this.oscillators.forEach((o) => {
-      try { o.stop() } catch { /* already stopped */ }
+    this.chordVoices.forEach(({ osc, gain }) => {
+      try { osc.stop() } catch { /* already stopped */ }
+      osc.disconnect()
+      gain.disconnect()
     })
-    this.oscillators = []
+    this.chordVoices = []
     this.currentKey = null
   }
 
